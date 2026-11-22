@@ -1,0 +1,2054 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>حضور المواقع — لوحة التحكم</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f3b5f'/%3E%3Cpath d='M16 7a7 7 0 0 0-7 7c0 5 7 11 7 11s7-6 7-11a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z' fill='%23f2a900'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+/* NEP Site Attendance — admin dashboard */
+:root {
+  --bg: #f3f4f6;
+  --surface: #ffffff;
+  --surface-2: #f8f9fb;
+  --ink: #18212b;
+  --ink-2: #3b4652;
+  --muted: #6b7682;
+  --line: #e3e7ec;
+  --brand: #0f3b5f;
+  --brand-2: #164e7c;
+  --brand-ink: #e8f0f7;
+  --accent: #f2a900;
+  --ok: #15803d;
+  --ok-bg: #e7f6ec;
+  --warn: #b45309;
+  --warn-bg: #fdf3e2;
+  --bad: #c62828;
+  --bad-bg: #fdecec;
+  --info: #1d5fa8;
+  --info-bg: #e8f1fb;
+  --radius: 12px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 1px 3px rgba(16, 24, 40, .06);
+  --shadow-lg: 0 20px 40px rgba(16, 24, 40, .18);
+  --font: 'IBM Plex Sans Arabic', system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14.5px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--info); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.num, .ltr { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.small { font-size: 12.5px; }
+.hidden { display: none !important; }
+
+/* ---------- boot ---------- */
+.boot { display: grid; place-items: center; min-height: 100vh; }
+.boot-spinner, .spinner {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 3px solid var(--line); border-top-color: var(--brand);
+  animation: spin .8s linear infinite;
+}
+.spinner { width: 18px; height: 18px; border-width: 2px; display: inline-block; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- auth screens ---------- */
+.auth-wrap {
+  min-height: 100vh; display: grid; place-items: center; padding: 24px 16px;
+  background:
+    radial-gradient(1200px 600px at 100% 0%, rgba(242,169,0,.10), transparent 60%),
+    linear-gradient(160deg, #0b2c47 0%, #0f3b5f 55%, #164e7c 100%);
+}
+.auth-card {
+  width: 100%; max-width: 400px; background: var(--surface); border-radius: 16px;
+  padding: 32px 28px; box-shadow: var(--shadow-lg);
+}
+.auth-card h1 { font-size: 20px; margin: 14px 0 4px; }
+.auth-card p { margin: 0 0 22px; color: var(--muted); }
+.brand-mark {
+  width: 44px; height: 44px; border-radius: 11px; background: var(--brand);
+  display: grid; place-items: center; color: var(--accent);
+}
+
+/* ---------- shell ---------- */
+.shell { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; }
+.sidebar {
+  background: var(--brand); color: var(--brand-ink); padding: 20px 14px;
+  display: flex; flex-direction: column; gap: 6px; position: sticky; top: 0; height: 100vh;
+}
+.sidebar .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; }
+.sidebar .brand .brand-mark { width: 36px; height: 36px; background: rgba(255,255,255,.08); }
+.sidebar .brand b { display: block; font-size: 15px; color: #fff; }
+.sidebar .brand span { font-size: 12px; opacity: .7; }
+.nav a {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 9px;
+  color: var(--brand-ink); opacity: .82; font-weight: 500; text-decoration: none;
+}
+.nav a:hover { background: rgba(255,255,255,.06); opacity: 1; }
+.nav a.active { background: rgba(255,255,255,.12); opacity: 1; color: #fff; box-shadow: inset -3px 0 0 var(--accent); }
+.nav svg { width: 18px; height: 18px; flex: none; }
+.sidebar .foot { margin-top: auto; font-size: 12px; opacity: .65; padding: 8px; }
+
+.main { min-width: 0; display: flex; flex-direction: column; }
+.topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 16px 28px; background: var(--surface); border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 5;
+}
+.topbar h2 { margin: 0; font-size: 18px; }
+.topbar .who { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
+.content { padding: 24px 28px 48px; display: flex; flex-direction: column; gap: 20px; max-width: 1400px; width: 100%; }
+
+/* ---------- components ---------- */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.card-h {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 14px 18px; border-bottom: 1px solid var(--line);
+}
+.card-h h3 { margin: 0; font-size: 15px; }
+.card-b { padding: 18px; }
+.card-b.flush { padding: 0; }
+
+.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.kpi { padding: 16px 18px; }
+.kpi .label { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.kpi .value { font-size: 28px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.kpi .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 14px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface);
+  cursor: pointer; font-weight: 500; white-space: nowrap; transition: background .15s, border-color .15s;
+}
+.btn:hover { background: var(--surface-2); }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+.btn.primary:hover { background: var(--brand-2); }
+.btn.danger { color: var(--bad); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.ghost:hover { background: var(--surface-2); }
+.btn.sm { padding: 5px 10px; font-size: 13px; border-radius: 8px; }
+.btn.block { width: 100%; padding: 11px; }
+.btn svg { width: 16px; height: 16px; }
+
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.field label { font-weight: 500; font-size: 13px; color: var(--ink-2); }
+.field .hint { font-size: 12px; color: var(--muted); }
+.input, select.input, textarea.input {
+  width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 9px; background: #fff;
+  outline: none; transition: border-color .15s, box-shadow .15s;
+}
+.input:focus { border-color: var(--brand-2); box-shadow: 0 0 0 3px rgba(22,78,124,.12); }
+.input.ltr { text-align: left; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 14px; }
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.spacer { flex: 1; }
+.form-error { color: var(--bad); font-size: 13px; min-height: 18px; margin: 4px 0 10px; }
+
+.check { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; background: #fff; }
+.check input { accent-color: var(--brand); }
+.checks { display: flex; flex-wrap: wrap; gap: 8px; }
+.switch { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.switch input { accent-color: var(--brand); width: 18px; height: 18px; }
+
+/* tables */
+.table-wrap { overflow-x: auto; }
+table.t { width: 100%; border-collapse: collapse; }
+table.t th, table.t td { padding: 11px 14px; text-align: right; border-bottom: 1px solid var(--line); vertical-align: middle; }
+table.t th { font-size: 12.5px; color: var(--muted); font-weight: 600; background: var(--surface-2); white-space: nowrap; position: sticky; top: 0; }
+table.t tr:last-child td { border-bottom: none; }
+table.t tbody tr:hover { background: #fafbfc; }
+table.t td.actions { white-space: nowrap; text-align: left; }
+.person b { display: block; font-weight: 600; }
+.person span { font-size: 12px; color: var(--muted); }
+.empty { padding: 36px 16px; text-align: center; color: var(--muted); }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px;
+  font-size: 12px; font-weight: 500; white-space: nowrap; background: var(--surface-2); color: var(--ink-2);
+}
+.badge.ok { background: var(--ok-bg); color: var(--ok); }
+.badge.warn { background: var(--warn-bg); color: var(--warn); }
+.badge.bad { background: var(--bad-bg); color: var(--bad); }
+.badge.info { background: var(--info-bg); color: var(--info); }
+.badge .pulse { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.site-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.site-tile { padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.site-tile h4 { margin: 0 0 6px; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; }
+.site-tile ul { margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--ink-2); }
+.site-tile li { padding: 2px 0; }
+
+.filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+.filters .field { margin: 0; min-width: 160px; }
+
+/* modal */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(15, 23, 32, .5); display: grid; place-items: center;
+  padding: 16px; z-index: 50; animation: fade .15s ease;
+}
+.modal {
+  width: 100%; max-width: 560px; max-height: calc(100vh - 32px); overflow: auto;
+  background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-lg);
+}
+.modal.wide { max-width: 860px; }
+.modal-h { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.modal-h h3 { margin: 0; font-size: 16px; }
+.modal-b { padding: 20px; }
+.modal-f { display: flex; justify-content: flex-start; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--line); background: var(--surface-2); border-radius: 0 0 14px 14px; }
+@keyframes fade { from { opacity: 0; } }
+
+.map { height: 320px; border-radius: 10px; border: 1px solid var(--line); margin-bottom: 14px; }
+.selfies { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.selfies figure { margin: 0; }
+.selfies img { width: 100%; aspect-ratio: 3/4; object-fit: cover; border-radius: 10px; background: var(--surface-2); }
+.selfies figcaption { font-size: 13px; color: var(--muted); margin-top: 6px; text-align: center; }
+
+/* toasts */
+#toasts { position: fixed; bottom: 20px; left: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 60; }
+.toast {
+  min-width: 260px; max-width: 380px; padding: 12px 16px; border-radius: 10px; color: #fff;
+  background: var(--ink); box-shadow: var(--shadow-lg); animation: fade .2s ease; font-size: 14px;
+}
+.toast.ok { background: var(--ok); }
+.toast.bad { background: var(--bad); }
+
+.notice { padding: 12px 14px; border-radius: 10px; background: var(--info-bg); color: var(--info); font-size: 13.5px; }
+.notice.warn { background: var(--warn-bg); color: var(--warn); }
+code.k { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; border: 1px solid var(--line); font-size: 12.5px; }
+
+/* ---------- responsive ---------- */
+@media (max-width: 1100px) {
+  .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  .shell { grid-template-columns: 1fr; }
+  .sidebar { position: static; height: auto; flex-direction: row; align-items: center; overflow-x: auto; padding: 10px 12px; }
+  .sidebar .brand { padding: 0 4px 0 12px; }
+  .sidebar .brand span, .sidebar .foot { display: none; }
+  .nav { display: flex; gap: 4px; }
+  .nav a { padding: 8px 10px; white-space: nowrap; }
+  .topbar, .content { padding-left: 16px; padding-right: 16px; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-2, .grid-3, .selfies { grid-template-columns: 1fr; }
+  table.t th, table.t td { white-space: nowrap; padding: 10px 12px; }
+}
+</style>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+</head>
+<body>
+  <div id="app" class="boot">
+    <div class="boot-spinner" aria-label="جاري التحميل"></div>
+  </div>
+  <div id="toasts" aria-live="polite"></div>
+  <script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+// ===== js/config.js =====
+const __m_js_config = (() => {
+
+// ⚙️ Supabase connection — replace with YOUR project's values.
+// Supabase Dashboard → Project Settings → API (or "Connect"):
+//   SUPABASE_URL  = Project URL            (https://xxxxxxxx.supabase.co)
+//   SUPABASE_KEY  = anon / publishable key  (safe to expose; security is enforced by RLS)
+// ⚠️ NEVER put the service_role / secret key here.
+const SUPABASE_URL = 'https://wpxvcmyenbfcjumjbhld.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_r91Y74I1bIFzptG_vuA3Fw_SsGcv6QR';
+
+return { SUPABASE_URL, SUPABASE_KEY };
+})();
+
+// ===== js/api.js =====
+const __m_js_api = (() => {
+const { SUPABASE_URL, SUPABASE_KEY } = __m_js_config;
+// Data layer: everything the dashboard needs from Supabase, mapped to simple camelCase objects.
+
+
+const configured = !SUPABASE_URL.includes('YOUR-PROJECT') && !SUPABASE_KEY.includes('YOUR-');
+
+const sb = createClient(
+  configured ? SUPABASE_URL : 'https://placeholder.supabase.co',
+  configured ? SUPABASE_KEY : 'placeholder',
+  { auth: { persistSession: true, autoRefreshToken: true } }
+);
+
+const must = ({ data, error }) => {
+  if (error) throw new Error(error.message || 'حصل خطأ في قاعدة البيانات');
+  return data;
+};
+
+/* ---------------- mappers ---------------- */
+
+const point = (p) =>
+  p ? { lat: p.lat, lng: p.lng, accuracy: p.accuracy, distance: p.distance, selfiePath: p.selfie_path } : null;
+
+const mapSite = (r) => ({
+  id: r.id, name: r.name, address: r.address, lat: r.lat, lng: r.lng, radius: r.radius, active: r.active,
+});
+
+const mapEngineer = (r) => ({
+  id: r.id, name: r.name, code: r.code, phone: r.phone, siteIds: r.site_ids || [], active: r.active,
+  deviceId: r.device_id, createdAt: r.created_at, role: r.role,
+});
+
+const mapAttendance = (r) => ({
+  id: r.id, uid: r.uid, name: r.name, code: r.code, siteId: r.site_id, siteName: r.site_name, date: r.date,
+  status: r.status, checkInAt: r.check_in_at, checkOutAt: r.check_out_at, checkIn: point(r.check_in),
+  checkOut: point(r.check_out), durationMinutes: r.duration_minutes, late: r.late, lateMinutes: r.late_minutes,
+  nonWorkday: r.non_workday, flags: r.flags || [],
+});
+
+const SETTINGS_MAP = {
+  companyName: 'company_name', workStart: 'work_start', workEnd: 'work_end', graceMinutes: 'grace_minutes',
+  workDays: 'work_days', maxAccuracy: 'max_accuracy', missedAlertTime: 'missed_alert_time',
+  dailySummaryTime: 'daily_summary_time', selfieRequired: 'selfie_required',
+  allowCheckoutOutside: 'allow_checkout_outside', selfieRetentionDays: 'selfie_retention_days',
+};
+const mapSettings = (r) =>
+  Object.fromEntries(Object.entries(SETTINGS_MAP).filter(([, col]) => r && col in r).map(([k, col]) => [k, r[col]]));
+const unmapSettings = (o) =>
+  Object.fromEntries(Object.entries(o).filter(([k]) => SETTINGS_MAP[k]).map(([k, v]) => [SETTINGS_MAP[k], v]));
+
+/* ---------------- auth ---------------- */
+
+const signIn = (email, password) =>
+  sb.auth.signInWithPassword({ email, password }).then(({ error }) => {
+    if (error) throw error;
+  });
+const signOut = () => sb.auth.signOut();
+const resetPasswordEmail = (email) =>
+  sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname }).then(must);
+const setNewPassword = (password) => sb.auth.updateUser({ password }).then(must);
+
+/** cb(user|null, event) */
+function onAuth(cb) {
+  const { data } = sb.auth.onAuthStateChange((event, session) => cb(session?.user ?? null, event));
+  return () => data.subscription.unsubscribe();
+}
+
+async function isAdmin(uid) {
+  const { data } = await sb.from('profiles').select('role, active').eq('id', uid).maybeSingle();
+  return data?.role === 'admin' && data.active === true;
+}
+
+/** Calls the `api/admin` Edge Function route. Throws Error with the Arabic message from the server. */
+async function fn(action, params = {}) {
+  const { data, error } = await sb.functions.invoke('api/admin', { body: { action, ...params } });
+  if (error) {
+    let msg = error.message;
+    try {
+      const body = await error.context?.json();
+      if (body?.error) msg = body.error;
+    } catch {
+      /* not json */
+    }
+    throw new Error(msg || 'تعذر تنفيذ العملية');
+  }
+  return data;
+}
+
+/* ---------------- data ---------------- */
+
+const listSites = async () => must(await sb.from('sites').select('*').order('name')).map(mapSite);
+
+async function saveSite(id, s) {
+  const row = { name: s.name, address: s.address, lat: s.lat, lng: s.lng, radius: s.radius, active: s.active, updated_at: new Date().toISOString() };
+  if (id) must(await sb.from('sites').update(row).eq('id', id));
+  else must(await sb.from('sites').insert(row));
+}
+const deleteSite = async (id) => must(await sb.from('sites').delete().eq('id', id));
+
+const listEngineers = async () =>
+  must(await sb.from('profiles').select('*').eq('role', 'engineer').order('name')).map(mapEngineer);
+
+async function updateEngineer(id, patch) {
+  const row = {};
+  if ('name' in patch) row.name = patch.name;
+  if ('phone' in patch) row.phone = patch.phone;
+  if ('siteIds' in patch) row.site_ids = patch.siteIds;
+  if ('deviceId' in patch) row.device_id = patch.deviceId;
+  must(await sb.from('profiles').update(row).eq('id', id));
+}
+
+const getSettings = async () => mapSettings(must(await sb.from('settings').select('*').eq('id', 1).single()));
+const saveSettings = async (s) => must(await sb.from('settings').update(unmapSettings(s)).eq('id', 1));
+
+const getChatIds = async () =>
+  must(await sb.from('settings_private').select('telegram_chat_ids').eq('id', 1).single()).telegram_chat_ids || '';
+const saveChatIds = async (v) =>
+  must(await sb.from('settings_private').update({ telegram_chat_ids: v }).eq('id', 1));
+
+const attendanceOn = async (date) =>
+  must(await sb.from('attendance').select('*').eq('date', date)).map(mapAttendance);
+
+async function attendanceRange(from, to) {
+  const out = [];
+  const page = 1000;
+  for (let i = 0; i < 50; i++) {
+    const rows = must(
+      await sb.from('attendance').select('*').gte('date', from).lte('date', to)
+        .order('date').order('check_in_at').range(i * page, i * page + page - 1)
+    );
+    out.push(...rows);
+    if (rows.length < page) break;
+  }
+  return out.map(mapAttendance);
+}
+
+const listAttempts = async (n = 300) =>
+  must(await sb.from('attempts').select('*').order('created_at', { ascending: false }).limit(n)).map((r) => ({
+    ...r, createdAt: r.created_at,
+  }));
+
+const urlCache = new Map();
+async function selfieUrl(path) {
+  if (!path) return null;
+  if (!urlCache.has(path)) {
+    urlCache.set(path, sb.storage.from('selfies').createSignedUrl(path, 3600).then(({ data }) => data?.signedUrl || null));
+  }
+  return urlCache.get(path);
+}
+
+/** Live updates: calls cb() whenever rows of `table` change. Returns an unsubscribe function. */
+function watch(table, cb) {
+  const ch = sb
+    .channel(`watch-${table}-${Math.random().toString(36).slice(2)}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table }, () => cb())
+    .subscribe();
+  return () => sb.removeChannel(ch);
+}
+
+return { configured, sb, mapSite, mapEngineer, mapAttendance, mapSettings, signIn, signOut, resetPasswordEmail, setNewPassword, onAuth, isAdmin, fn, listSites, saveSite, deleteSite, listEngineers, updateEngineer, getSettings, saveSettings, getChatIds, saveChatIds, attendanceOn, attendanceRange, listAttempts, selfieUrl, watch };
+})();
+
+// ===== js/ui.js =====
+const __m_js_ui = (() => {
+
+// Small UI toolkit: escaping, formatting, toasts, modals, icons.
+
+const TZ = 'Africa/Cairo';
+
+function esc(v) {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+
+/* ---------- dates & numbers (Cairo time, Latin digits) ---------- */
+
+const dateKeyFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+const timeFmt = new Intl.DateTimeFormat('ar-EG-u-nu-latn', { timeZone: TZ, hour: 'numeric', minute: '2-digit', hour12: true });
+const time24Fmt = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const longDateFmt = new Intl.DateTimeFormat('ar-EG-u-nu-latn', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+const dateTimeFmt = new Intl.DateTimeFormat('ar-EG-u-nu-latn', { timeZone: TZ, day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
+const weekdayFmt = new Intl.DateTimeFormat('ar-EG', { timeZone: 'UTC', weekday: 'long' });
+
+const toDate = (ts) => (ts?.toDate ? ts.toDate() : ts instanceof Date ? ts : ts ? new Date(ts) : null);
+const dateKey = (d = new Date()) => dateKeyFmt.format(d);
+const todayKey = () => dateKey(new Date());
+const fmtTime = (ts) => (toDate(ts) ? timeFmt.format(toDate(ts)) : '—');
+const fmtTime24 = (ts) => (toDate(ts) ? time24Fmt.format(toDate(ts)) : '');
+const fmtLongDate = (d = new Date()) => longDateFmt.format(d);
+const fmtDateTime = (ts) => (toDate(ts) ? dateTimeFmt.format(toDate(ts)) : '—');
+/** 'YYYY-MM-DD' -> Arabic weekday name */
+const weekdayOfKey = (key) => weekdayFmt.format(new Date(`${key}T12:00:00Z`));
+/** 'YYYY-MM-DD' -> JS weekday 0..6 */
+const weekdayIndexOfKey = (key) => new Date(`${key}T12:00:00Z`).getUTCDay();
+
+function fmtDuration(minutes) {
+  if (minutes == null || !Number.isFinite(minutes)) return '—';
+  const m = Math.max(0, Math.round(minutes));
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  if (!h) return `${r} د`;
+  return r ? `${h} س ${r} د` : `${h} س`;
+}
+const fmtHours = (minutes) => (Math.round((minutes / 60) * 100) / 100).toFixed(2);
+
+function minutesBetween(a, b) {
+  const da = toDate(a);
+  const db = toDate(b);
+  if (!da || !db) return null;
+  return Math.round((db - da) / 60000);
+}
+
+function parseHHMM(v) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(v || ''));
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
+function addDaysKey(key, n) {
+  const d = new Date(`${key}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/* ---------- labels ---------- */
+
+const WEEKDAYS = [
+  { i: 6, label: 'السبت' },
+  { i: 0, label: 'الأحد' },
+  { i: 1, label: 'الاثنين' },
+  { i: 2, label: 'الثلاثاء' },
+  { i: 3, label: 'الأربعاء' },
+  { i: 4, label: 'الخميس' },
+  { i: 5, label: 'الجمعة' },
+];
+
+const REASON_LABELS = {
+  inactive: ['حساب موقوف', 'warn'],
+  bad_request: ['بيانات ناقصة', 'warn'],
+  device_mismatch: ['موبايل غير مسجل', 'bad'],
+  mock_location: ['تزييف موقع', 'bad'],
+  low_accuracy: ['إشارة GPS ضعيفة', 'info'],
+  site_not_assigned: ['موقع غير متعين', 'warn'],
+  site_inactive: ['موقع متوقف', 'warn'],
+  outside_geofence: ['خارج النطاق', 'warn'],
+  outside_on_checkout: ['انصراف خارج النطاق', 'warn'],
+  already_checked_in: ['حضور مكرر', 'info'],
+  not_checked_in: ['انصراف بدون حضور', 'info'],
+  selfie_missing: ['بدون سيلفي', 'warn'],
+  selfie_invalid: ['سيلفي غير صالح', 'warn'],
+  selfie_stale: ['سيلفي قديم', 'warn'],
+};
+
+const FLAG_LABELS = {
+  checkout_outside_site: ['انصراف من خارج الموقع', 'warn'],
+  non_workday: ['يوم إجازة', 'info'],
+  no_checkout: ['بدون انصراف', 'bad'],
+};
+
+function badge(text, kind = '') {
+  return `<span class="badge ${kind}">${esc(text)}</span>`;
+}
+
+function flagBadges(flags = []) {
+  return flags
+    .filter((f) => FLAG_LABELS[f])
+    .map((f) => badge(FLAG_LABELS[f][0], FLAG_LABELS[f][1]))
+    .join(' ');
+}
+
+/* ---------- toasts ---------- */
+
+function toast(message, kind = '') {
+  const box = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = `toast ${kind}`;
+  el.textContent = message;
+  box.appendChild(el);
+  setTimeout(() => el.remove(), kind === 'bad' ? 6000 : 3500);
+}
+
+/* ---------- modal ---------- */
+
+/**
+ * Opens a modal. `onSubmit(form, close)` runs on the primary button; return false to keep open.
+ * Returns { el, close }.
+ */
+function modal({ title, body, submitLabel = 'حفظ', cancelLabel = 'إلغاء', wide = false, onSubmit, onOpen, danger = false, hideFooter = false }) {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <form class="modal ${wide ? 'wide' : ''}" novalidate>
+      <div class="modal-h">
+        <h3>${esc(title)}</h3>
+        <button type="button" class="btn ghost sm" data-close aria-label="إغلاق">${icon('x')}</button>
+      </div>
+      <div class="modal-b">${body}<div class="form-error" data-error></div></div>
+      ${hideFooter ? '' : `
+      <div class="modal-f">
+        ${onSubmit ? `<button type="submit" class="btn ${danger ? 'danger' : 'primary'}" data-submit>${esc(submitLabel)}</button>` : ''}
+        <button type="button" class="btn" data-close>${esc(onSubmit ? cancelLabel : 'إغلاق')}</button>
+      </div>`}
+    </form>`;
+  const form = backdrop.querySelector('form');
+  const close = () => {
+    backdrop.remove();
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e) => e.key === 'Escape' && close();
+  document.addEventListener('keydown', onKey);
+  backdrop.addEventListener('mousedown', (e) => e.target === backdrop && close());
+  backdrop.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!onSubmit) return close();
+    const btn = form.querySelector('[data-submit]');
+    const err = form.querySelector('[data-error]');
+    err.textContent = '';
+    btn.disabled = true;
+    const label = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner"></span>';
+    try {
+      const keep = await onSubmit(form, close);
+      if (keep !== false) close();
+    } catch (ex) {
+      err.textContent = ex.message || 'حصل خطأ';
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = label;
+    }
+  });
+  document.body.appendChild(backdrop);
+  const first = form.querySelector('input:not([type=hidden]), select, textarea');
+  if (first) setTimeout(() => first.focus(), 30);
+  onOpen?.(form, close);
+  return { el: form, close };
+}
+
+function confirmDialog(title, message, { confirmLabel = 'تأكيد', danger = false } = {}) {
+  return new Promise((resolve) => {
+    let done = false;
+    const m = modal({
+      title,
+      body: `<p style="margin:0">${esc(message)}</p>`,
+      submitLabel: confirmLabel,
+      danger,
+      onSubmit: () => {
+        done = true;
+        resolve(true);
+      },
+    });
+    const obs = new MutationObserver(() => {
+      if (!document.body.contains(m.el)) {
+        obs.disconnect();
+        if (!done) resolve(false);
+      }
+    });
+    obs.observe(document.body, { childList: true });
+  });
+}
+
+async function withBusy(btn, fn) {
+  const label = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  try {
+    return await fn();
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = label;
+  }
+}
+
+/* ---------- icons (inline, stroke) ---------- */
+
+const ICONS = {
+  today: '<path d="M8 2v4M16 2v4M3 10h18"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="m9 16 2 2 4-4"/>',
+  site: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
+  report: '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4M12 16h.01"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>',
+  camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+  key: '<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/>',
+  phone: '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/>',
+  pin: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  send: '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+};
+
+function icon(name) {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+}
+
+function mapsLink(lat, lng, label = 'خريطة') {
+  if (lat == null || lng == null) return '';
+  return `<a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" rel="noopener">${esc(label)}</a>`;
+}
+
+return { TZ, esc, $, $$, toDate, dateKey, todayKey, fmtTime, fmtTime24, fmtLongDate, fmtDateTime, weekdayOfKey, weekdayIndexOfKey, fmtDuration, fmtHours, minutesBetween, parseHHMM, addDaysKey, WEEKDAYS, REASON_LABELS, FLAG_LABELS, badge, flagBadges, toast, modal, confirmDialog, withBusy, icon, mapsLink };
+})();
+
+// ===== js/store.js =====
+const __m_js_store = (() => {
+const { listSites, listEngineers, getSettings, watch } = __m_js_api;
+// Live shared data (sites, engineers, settings) used across pages.
+
+const DEFAULT_SETTINGS = {
+  companyName: 'NEP للمقاولات والأعمال الهندسية',
+  workStart: '08:00',
+  workEnd: '17:00',
+  graceMinutes: 15,
+  workDays: [6, 0, 1, 2, 3, 4],
+  maxAccuracy: 50,
+  missedAlertTime: '09:30',
+  dailySummaryTime: '18:00',
+  selfieRequired: true,
+  allowCheckoutOutside: true,
+  selfieRetentionDays: 90,
+};
+
+const state = {
+  sites: [],
+  engineers: [],
+  settings: { ...DEFAULT_SETTINGS },
+  ready: { sites: false, engineers: false, settings: false },
+};
+const subs = new Set();
+let unsubs = [];
+
+const emit = () => subs.forEach((fn) => fn(state));
+
+async function load(key) {
+  try {
+    if (key === 'sites') state.sites = await listSites();
+    if (key === 'engineers') state.engineers = await listEngineers();
+    if (key === 'settings') state.settings = { ...DEFAULT_SETTINGS, ...(await getSettings()) };
+    state.ready[key] = true;
+    emit();
+  } catch (err) {
+    console.error('store load failed', key, err);
+  }
+}
+
+function startStore() {
+  stopStore();
+  ['sites', 'engineers', 'settings'].forEach(load);
+  unsubs = [
+    watch('sites', () => load('sites')),
+    watch('profiles', () => load('engineers')),
+    watch('settings', () => load('settings')),
+  ];
+}
+
+/** Force a refresh (e.g. right after a write, in case realtime is slow). */
+const refresh = (key) => load(key);
+
+function stopStore() {
+  unsubs.forEach((u) => u());
+  unsubs = [];
+}
+
+const getState = () => state;
+function subscribe(fn) {
+  subs.add(fn);
+  return () => subs.delete(fn);
+}
+const siteName = (id) => state.sites.find((s) => s.id === id)?.name || '—';
+
+return { DEFAULT_SETTINGS, startStore, refresh, stopStore, getState, subscribe, siteName };
+})();
+
+// ===== js/pages/today.js =====
+const __m_js_pages_today = (() => {
+const { attendanceOn, watch, selfieUrl } = __m_js_api;
+const { getState, subscribe } = __m_js_store;
+const { esc, $, todayKey, fmtLongDate, fmtTime, fmtDuration, minutesBetween, badge, flagBadges, modal, icon, mapsLink, toDate, toast, } = __m_js_ui;
+
+
+
+function render(page) {
+  const today = todayKey();
+  let rows = [];
+  let loaded = false;
+
+  page.innerHTML = `
+    <div class="row"><div><b>${esc(fmtLongDate())}</b> <span class="muted small">— تحديث مباشر</span></div></div>
+    <section class="kpis" id="kpis"></section>
+    <section class="card">
+      <div class="card-h"><h3>المواقع الآن</h3><span class="muted small">مين موجود في كل موقع حاليًا</span></div>
+      <div class="card-b" id="bySite"></div>
+    </section>
+    <section class="card">
+      <div class="card-h"><h3>سجل اليوم</h3><span class="muted small" id="count"></span></div>
+      <div class="card-b flush table-wrap" id="log"></div>
+    </section>
+    <section class="card">
+      <div class="card-h"><h3>لم يسجلوا حضور اليوم</h3></div>
+      <div class="card-b" id="absent"></div>
+    </section>`;
+
+  const draw = () => {
+    const { engineers, sites, settings } = getState();
+    const active = engineers.filter((e) => e.active && (e.siteIds || []).length);
+    const open = rows.filter((r) => r.status === 'open');
+    const presentUids = new Set(rows.map((r) => r.uid));
+    const lateUids = new Set(rows.filter((r) => r.late).map((r) => r.uid));
+    const absent = active.filter((e) => !presentUids.has(e.id));
+    const workday = (settings.workDays || []).includes(new Date(`${today}T12:00:00Z`).getUTCDay());
+
+    const kpi = (label, value, color) => `
+      <div class="card kpi"><div class="label"><span class="dot" style="background:${color}"></span>${label}</div>
+      <div class="value">${loaded ? value : '…'}</div></div>`;
+    $('#kpis', page).innerHTML = [
+      kpi('مهندسين نشطين', active.length, 'var(--brand)'),
+      kpi('في المواقع الآن', open.length, 'var(--ok)'),
+      kpi('سجلوا حضور اليوم', presentUids.size, 'var(--info)'),
+      kpi('متأخرين', lateUids.size, 'var(--warn)'),
+      kpi(workday ? 'لم يسجلوا' : 'لم يسجلوا (إجازة)', absent.length, 'var(--bad)'),
+    ].join('');
+
+    // By site
+    const activeSites = sites.filter((s) => s.active !== false);
+    $('#bySite', page).innerHTML = activeSites.length
+      ? `<div class="site-grid">${activeSites
+          .map((s) => {
+            const here = open.filter((r) => r.siteId === s.id);
+            return `<div class="site-tile">
+              <h4><span>${esc(s.name)}</span>${here.length ? badge(`${here.length} موجود`, 'ok') : badge('لا أحد', '')}</h4>
+              <ul>${here.map((r) => `<li>• ${esc(r.name)} <span class="muted small">من ${fmtTime(r.checkInAt)}</span></li>`).join('')}</ul>
+            </div>`;
+          })
+          .join('')}</div>`
+      : `<div class="empty">مفيش مواقع لسه. أضف أول موقع من صفحة <a href="#/sites">المواقع</a>.</div>`;
+
+    // Log
+    $('#count', page).textContent = loaded ? `${rows.length} تسجيل` : '';
+    const sorted = [...rows].sort((a, b) => toDate(b.checkInAt) - toDate(a.checkInAt));
+    $('#log', page).innerHTML = !loaded
+      ? `<div class="empty"><span class="spinner"></span></div>`
+      : !sorted.length
+      ? `<div class="empty">مفيش تسجيلات النهارده لسه.</div>`
+      : `<table class="t"><thead><tr>
+          <th>المهندس</th><th>الموقع</th><th>الحضور</th><th>الانصراف</th><th>المدة</th><th>الحالة</th><th>المسافة</th><th></th>
+        </tr></thead><tbody>${sorted
+          .map((r) => {
+            const dur = r.status === 'open' ? minutesBetween(r.checkInAt, new Date()) : r.durationMinutes;
+            const status =
+              r.status === 'open'
+                ? `<span class="badge ok"><span class="pulse"></span>في الموقع</span>`
+                : badge('انصرف', '');
+            return `<tr>
+              <td class="person"><b>${esc(r.name)}</b><span class="ltr">${esc(r.code)}</span></td>
+              <td>${esc(r.siteName)}</td>
+              <td class="num">${fmtTime(r.checkInAt)} ${r.late ? badge(`متأخر ${fmtDuration(r.lateMinutes)}`, 'warn') : ''}</td>
+              <td class="num">${r.checkOutAt ? fmtTime(r.checkOutAt) : '—'}</td>
+              <td class="num">${fmtDuration(dur)}</td>
+              <td>${status} ${flagBadges(r.flags)}</td>
+              <td class="num small">${r.checkIn?.distance ?? '—'} م ${mapsLink(r.checkIn?.lat, r.checkIn?.lng, '↗')}</td>
+              <td class="actions"><button class="btn sm" data-photos="${esc(r.id)}" title="الصور">${icon('camera')}</button></td>
+            </tr>`;
+          })
+          .join('')}</tbody></table>`;
+
+    // Absent
+    $('#absent', page).innerHTML = !loaded
+      ? ''
+      : absent.length
+      ? `<div class="chips">${absent
+          .map((e) => `<span class="badge bad">${esc(e.name)}${e.phone ? ` · <span class="ltr">${esc(e.phone)}</span>` : ''}</span>`)
+          .join('')}</div>`
+      : `<div class="muted">كل المهندسين سجلوا حضور 👏</div>`;
+  };
+
+  page.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-photos]');
+    if (!btn) return;
+    const r = rows.find((x) => x.id === btn.dataset.photos);
+    if (!r) return;
+    showPhotos(r);
+  });
+
+  const load = async () => {
+    try {
+      rows = await attendanceOn(today);
+      loaded = true;
+      draw();
+    } catch (err) {
+      toast(err.message, 'bad');
+    }
+  };
+  load();
+  const unsubAtt = watch('attendance', load);
+  const unsubStore = subscribe(draw);
+  const tick = setInterval(draw, 60000);
+  draw();
+
+  return () => {
+    unsubAtt();
+    unsubStore();
+    clearInterval(tick);
+  };
+}
+
+async function showPhotos(r) {
+  const m = modal({
+    title: `صور ${r.name} — ${r.siteName}`,
+    body: `<div class="selfies">
+      <figure><img data-in alt="سيلفي الحضور" /><figcaption>الحضور ${fmtTime(r.checkInAt)}</figcaption></figure>
+      <figure><img data-out alt="سيلفي الانصراف" /><figcaption>${r.checkOutAt ? `الانصراف ${fmtTime(r.checkOutAt)}` : 'لم ينصرف بعد'}</figcaption></figure>
+    </div>`,
+  });
+  const [inUrl, outUrl] = await Promise.all([selfieUrl(r.checkIn?.selfiePath), selfieUrl(r.checkOut?.selfiePath)]);
+  if (inUrl) m.el.querySelector('[data-in]').src = inUrl;
+  if (outUrl) m.el.querySelector('[data-out]').src = outUrl;
+}
+
+return { render, showPhotos };
+})();
+
+// ===== js/pages/sites.js =====
+const __m_js_pages_sites = (() => {
+const { saveSite, deleteSite } = __m_js_api;
+const { getState, subscribe, refresh } = __m_js_store;
+const { esc, $, badge, icon, modal, toast, confirmDialog, mapsLink } = __m_js_ui;
+
+
+
+const CAIRO = [30.0444, 31.2357];
+
+function render(page) {
+  let filter = '';
+  page.innerHTML = `
+    <section class="card">
+      <div class="card-h">
+        <h3>مواقع العمل</h3>
+        <div class="row">
+          <input class="input" id="q" placeholder="بحث باسم الموقع…" style="width:220px" />
+          <button class="btn primary" id="add">${icon('plus')} موقع جديد</button>
+        </div>
+      </div>
+      <div class="card-b flush table-wrap" id="list"></div>
+    </section>
+    <div class="notice">نصف قطر النطاق: ابدأ بـ 150 متر للمواقع العادية، وكبّره للمشروعات الكبيرة (كمباوند مثلًا). المهندس لازم يكون جوه الدايرة علشان يسجل حضور.</div>`;
+
+  const draw = () => {
+    const { sites, engineers, ready } = getState();
+    if (!ready.sites) return ($('#list', page).innerHTML = `<div class="empty"><span class="spinner"></span></div>`);
+    const list = sites.filter((s) => !filter || String(s.name).includes(filter) || String(s.address || '').includes(filter));
+    if (!list.length) {
+      $('#list', page).innerHTML = `<div class="empty">${sites.length ? 'مفيش نتائج.' : 'مفيش مواقع لسه — اضغط "موقع جديد".'}</div>`;
+      return;
+    }
+    $('#list', page).innerHTML = `<table class="t"><thead><tr>
+      <th>الموقع</th><th>النطاق</th><th>الإحداثيات</th><th>المهندسين المتعينين</th><th>الحالة</th><th></th>
+    </tr></thead><tbody>${list
+      .map((s) => {
+        const count = engineers.filter((e) => (e.siteIds || []).includes(s.id)).length;
+        return `<tr>
+          <td class="person"><b>${esc(s.name)}</b><span>${esc(s.address || '')}</span></td>
+          <td class="num">${esc(s.radius)} م</td>
+          <td class="num small">${Number(s.lat).toFixed(5)}, ${Number(s.lng).toFixed(5)} ${mapsLink(s.lat, s.lng, '↗')}</td>
+          <td>${count}</td>
+          <td>${s.active === false ? badge('متوقف', 'bad') : badge('نشط', 'ok')}</td>
+          <td class="actions">
+            <button class="btn sm" data-edit="${esc(s.id)}">${icon('edit')} تعديل</button>
+            <button class="btn sm danger" data-del="${esc(s.id)}" title="حذف">${icon('trash')}</button>
+          </td></tr>`;
+      })
+      .join('')}</tbody></table>`;
+  };
+
+  $('#q', page).addEventListener('input', (e) => {
+    filter = e.target.value.trim();
+    draw();
+  });
+  $('#add', page).addEventListener('click', () => openSiteModal());
+  page.addEventListener('click', (e) => handleClick(e).catch((err) => toast(err.message || 'حصل خطأ', 'bad')));
+
+  async function handleClick(e) {
+    const edit = e.target.closest('[data-edit]');
+    const del = e.target.closest('[data-del]');
+    if (edit) openSiteModal(getState().sites.find((s) => s.id === edit.dataset.edit));
+    if (del) {
+      const site = getState().sites.find((s) => s.id === del.dataset.del);
+      const assigned = getState().engineers.filter((x) => (x.siteIds || []).includes(site.id)).length;
+      const ok = await confirmDialog(
+        'حذف الموقع',
+        assigned
+          ? `الموقع "${site.name}" متعين عليه ${assigned} مهندس. الأفضل توقفه بدل ما تحذفه علشان التقارير القديمة. متأكد إنك عايز تحذفه؟`
+          : `متأكد إنك عايز تحذف "${site.name}"؟ سجلات الحضور القديمة هتفضل موجودة.`,
+        { confirmLabel: 'حذف', danger: true }
+      );
+      if (ok) {
+        await deleteSite(site.id);
+        refresh('sites');
+        toast('تم حذف الموقع', 'ok');
+      }
+    }
+  }
+
+  const unsub = subscribe(draw);
+  draw();
+  return unsub;
+}
+
+/** Accepts "30.04, 31.23", or a Google Maps link containing @lat,lng / q=lat,lng / !3dlat!4dlng */
+function parseCoords(text) {
+  const t = String(text || '').trim();
+  const patterns = [
+    /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,
+    /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
+    /[?&](?:q|query|ll)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
+    /^(-?\d+(?:\.\d+)?)\s*[,،\s]\s*(-?\d+(?:\.\d+)?)$/,
+  ];
+  for (const p of patterns) {
+    const m = p.exec(t);
+    if (m) {
+      const lat = Number(m[1]);
+      const lng = Number(m[2]);
+      if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) return { lat, lng };
+    }
+  }
+  return null;
+}
+
+function openSiteModal(site) {
+  const isEdit = !!site;
+  const s = site || { name: '', address: '', radius: 150, lat: null, lng: null, active: true };
+  let map, marker, circle;
+
+  const m = modal({
+    title: isEdit ? `تعديل: ${s.name}` : 'موقع جديد',
+    wide: true,
+    submitLabel: isEdit ? 'حفظ التعديلات' : 'إضافة الموقع',
+    body: `
+      <div class="grid-2">
+        <div class="field"><label>اسم الموقع *</label><input class="input" name="siteName" value="${esc(s.name)}" required /></div>
+        <div class="field"><label>العنوان / وصف</label><input class="input" name="address" value="${esc(s.address || '')}" /></div>
+      </div>
+      <div class="field">
+        <label>مكان الموقع *</label>
+        <div class="row">
+          <input class="input ltr" name="coords" style="flex:1;min-width:220px" placeholder="الصق إحداثيات أو لينك جوجل ماب: 30.0444, 31.2357"
+            value="${s.lat != null ? `${s.lat}, ${s.lng}` : ''}" />
+          <button type="button" class="btn" data-here>${icon('pin')} موقعي الحالي</button>
+        </div>
+        <span class="hint">أو اضغط على الخريطة. من جوجل ماب: اضغط ضغطة طويلة على المكان وانسخ الأرقام اللي بتظهر.</span>
+      </div>
+      <div class="map" data-map></div>
+      <div class="grid-2">
+        <div class="field"><label>نصف قطر النطاق (متر) *</label>
+          <input class="input ltr" name="radius" type="number" min="30" max="2000" step="10" value="${esc(s.radius)}" /></div>
+        <div class="field"><label>الحالة</label>
+          <label class="switch"><input type="checkbox" name="active" ${s.active !== false ? 'checked' : ''}/> الموقع نشط ويسمح بالتسجيل</label></div>
+      </div>`,
+    onOpen: (form) => {
+      const mapEl = form.querySelector('[data-map]');
+      if (!window.L) {
+        mapEl.innerHTML = '<div class="empty">تعذر تحميل الخريطة — استخدم الإحداثيات.</div>';
+        return;
+      }
+      const start = s.lat != null ? [s.lat, s.lng] : CAIRO;
+      map = L.map(mapEl).setView(start, s.lat != null ? 16 : 11);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap',
+      }).addTo(map);
+      const place = (lat, lng, pan = true) => {
+        const r = Number(form.radius.value) || 150;
+        if (!marker) {
+          marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+          marker.on('dragend', () => {
+            const p = marker.getLatLng();
+            place(p.lat, p.lng, false);
+          });
+          circle = L.circle([lat, lng], { radius: r, color: '#0f3b5f', fillColor: '#f2a900', fillOpacity: 0.18, weight: 2 }).addTo(map);
+        } else {
+          marker.setLatLng([lat, lng]);
+          circle.setLatLng([lat, lng]);
+        }
+        circle.setRadius(r);
+        form.coords.value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+        if (pan) map.setView([lat, lng], Math.max(map.getZoom(), 16));
+      };
+      if (s.lat != null) place(s.lat, s.lng);
+      map.on('click', (e) => place(e.latlng.lat, e.latlng.lng, false));
+      form.coords.addEventListener('change', () => {
+        const c = parseCoords(form.coords.value);
+        if (c) place(c.lat, c.lng);
+      });
+      form.radius.addEventListener('input', () => circle && circle.setRadius(Number(form.radius.value) || 150));
+      form.querySelector('[data-here]').addEventListener('click', () => {
+        if (!navigator.geolocation) return toast('المتصفح لا يدعم تحديد الموقع', 'bad');
+        navigator.geolocation.getCurrentPosition(
+          (p) => place(p.coords.latitude, p.coords.longitude),
+          () => toast('تعذر تحديد موقعك. اسمح للمتصفح باستخدام الموقع.', 'bad'),
+          { enableHighAccuracy: true, timeout: 15000 }
+        );
+      });
+      setTimeout(() => map.invalidateSize(), 120);
+    },
+    onSubmit: async (form) => {
+      const name = form.siteName.value.trim();
+      const coords = parseCoords(form.coords.value);
+      const radius = Math.round(Number(form.radius.value));
+      if (name.length < 2) throw new Error('اكتب اسم الموقع.');
+      if (!coords) throw new Error('حدد مكان الموقع على الخريطة أو الصق الإحداثيات.');
+      if (!(radius >= 30 && radius <= 2000)) throw new Error('النطاق لازم يكون بين 30 و 2000 متر.');
+      const data = {
+        name,
+        address: form.address.value.trim(),
+        lat: coords.lat,
+        lng: coords.lng,
+        radius,
+        active: form.active.checked,
+      };
+      await saveSite(isEdit ? s.id : null, data);
+      refresh('sites');
+      toast(isEdit ? 'تم حفظ التعديلات' : 'تمت إضافة الموقع', 'ok');
+    },
+  });
+  return m;
+}
+
+return { render, parseCoords };
+})();
+
+// ===== js/pages/engineers.js =====
+const __m_js_pages_engineers = (() => {
+const { fn, updateEngineer } = __m_js_api;
+const { getState, subscribe, siteName, refresh } = __m_js_store;
+const { esc, $, badge, icon, modal, toast, confirmDialog, withBusy } = __m_js_ui;
+
+
+
+function render(page) {
+  let filter = '';
+  page.innerHTML = `
+    <section class="card">
+      <div class="card-h">
+        <h3>المهندسين</h3>
+        <div class="row">
+          <input class="input" id="q" placeholder="بحث بالاسم أو الكود…" style="width:220px" />
+          <button class="btn primary" id="add">${icon('plus')} مهندس جديد</button>
+        </div>
+      </div>
+      <div class="card-b flush table-wrap" id="list"></div>
+    </section>
+    <div class="notice">المهندس بيدخل التطبيق بـ <b>الكود</b> وكلمة السر. أول موبايل يسجل منه بيتربط بالحساب تلقائيًا، ولو غيّر موبايله اضغط "فك ربط الموبايل".</div>`;
+
+  const draw = () => {
+    const { engineers, ready } = getState();
+    if (!ready.engineers) return ($('#list', page).innerHTML = `<div class="empty"><span class="spinner"></span></div>`);
+    const q = filter.toLowerCase();
+    const list = engineers.filter(
+      (e) => !q || String(e.name).toLowerCase().includes(q) || String(e.code).toLowerCase().includes(q) || String(e.phone || '').includes(q)
+    );
+    if (!list.length) {
+      $('#list', page).innerHTML = `<div class="empty">${engineers.length ? 'مفيش نتائج.' : 'مفيش مهندسين لسه — اضغط "مهندس جديد".'}</div>`;
+      return;
+    }
+    $('#list', page).innerHTML = `<table class="t"><thead><tr>
+      <th>المهندس</th><th>الموبايل</th><th>المواقع المتعينة</th><th>الجهاز</th><th>الحالة</th><th></th>
+    </tr></thead><tbody>${list
+      .map(
+        (e) => `<tr>
+        <td class="person"><b>${esc(e.name)}</b><span class="ltr">${esc(e.code)}</span></td>
+        <td class="num">${esc(e.phone || '—')}</td>
+        <td><div class="chips">${(e.siteIds || []).map((id) => badge(siteName(id), 'info')).join('') || '<span class="muted small">لا يوجد</span>'}</div></td>
+        <td>${e.deviceId ? `${badge('مربوط', 'ok')} <button class="btn sm ghost" data-unbind="${esc(e.id)}" title="فك ربط الموبايل">${icon('phone')}</button>` : badge('غير مربوط', '')}</td>
+        <td>${e.active ? badge('نشط', 'ok') : badge('موقوف', 'bad')}</td>
+        <td class="actions">
+          <button class="btn sm" data-edit="${esc(e.id)}">${icon('edit')} تعديل</button>
+          <button class="btn sm" data-pass="${esc(e.id)}" title="تغيير كلمة السر">${icon('key')}</button>
+          <button class="btn sm ${e.active ? 'danger' : ''}" data-toggle="${esc(e.id)}">${e.active ? 'إيقاف' : 'تفعيل'}</button>
+        </td></tr>`
+      )
+      .join('')}</tbody></table>`;
+  };
+
+  $('#q', page).addEventListener('input', (e) => {
+    filter = e.target.value.trim();
+    draw();
+  });
+  $('#add', page).addEventListener('click', () => openEngineerModal());
+
+  page.addEventListener('click', (ev) => handleClick(ev).catch((err) => toast(err.message || 'حصل خطأ', 'bad')));
+
+  async function handleClick(ev) {
+    const t = ev.target.closest('button');
+    if (!t) return;
+    const find = (id) => getState().engineers.find((x) => x.id === id);
+
+    if (t.dataset.edit) openEngineerModal(find(t.dataset.edit));
+
+    if (t.dataset.pass) {
+      const e = find(t.dataset.pass);
+      modal({
+        title: `كلمة سر جديدة — ${e.name}`,
+        submitLabel: 'تغيير',
+        body: `<div class="field"><label>كلمة السر الجديدة</label>
+          <div class="row"><input class="input ltr" name="password" style="flex:1" value="${genPassword()}" />
+          <button type="button" class="btn" data-gen>توليد</button></div>
+          <span class="hint">هيتم تسجيل خروجه من التطبيق، وابعتله كلمة السر الجديدة.</span></div>`,
+        onOpen: (form) => form.querySelector('[data-gen]').addEventListener('click', () => (form.password.value = genPassword())),
+        onSubmit: async (form) => {
+          await fn('resetPassword', { uid: e.id, password: form.password.value });
+          toast('تم تغيير كلمة السر', 'ok');
+        },
+      });
+    }
+
+    if (t.dataset.toggle) {
+      const e = find(t.dataset.toggle);
+      const next = !e.active;
+      const ok = await confirmDialog(
+        next ? 'تفعيل المهندس' : 'إيقاف المهندس',
+        next ? `تفعيل حساب ${e.name}؟` : `إيقاف حساب ${e.name}؟ مش هيقدر يسجل دخول أو حضور، وسجلاته القديمة هتفضل في التقارير.`,
+        { confirmLabel: next ? 'تفعيل' : 'إيقاف', danger: !next }
+      );
+      if (ok) {
+        await withBusy(t, () => fn('setActive', { uid: e.id, active: next }));
+        refresh('engineers');
+        toast(next ? 'تم التفعيل' : 'تم الإيقاف', 'ok');
+      }
+    }
+
+    if (t.dataset.unbind) {
+      const e = find(t.dataset.unbind);
+      const ok = await confirmDialog(
+        'فك ربط الموبايل',
+        `هيتم فك ربط موبايل ${e.name}، وأول موبايل يسجل منه بعد كده هيتربط. استخدمها لو المهندس غيّر موبايله بس.`,
+        { confirmLabel: 'فك الربط' }
+      );
+      if (ok) {
+        await updateEngineer(e.id, { deviceId: null });
+        refresh('engineers');
+        toast('تم فك الربط', 'ok');
+      }
+    }
+  }
+
+  const unsub = subscribe(draw);
+  draw();
+  return unsub;
+}
+
+function genPassword() {
+  const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+  const arr = new Uint32Array(8);
+  crypto.getRandomValues(arr);
+  return [...arr].map((n) => chars[n % chars.length]).join('');
+}
+
+function sitesChecklist(selected = []) {
+  const { sites } = getState();
+  if (!sites.length) return `<div class="notice warn">أضف المواقع الأول من صفحة المواقع.</div>`;
+  return `<div class="checks">${sites
+    .map(
+      (s) => `<label class="check"><input type="checkbox" name="sites" value="${esc(s.id)}" ${selected.includes(s.id) ? 'checked' : ''} />
+      ${esc(s.name)}${s.active === false ? ' <span class="muted small">(متوقف)</span>' : ''}</label>`
+    )
+    .join('')}</div>`;
+}
+
+function openEngineerModal(eng) {
+  const isEdit = !!eng;
+  const e = eng || { name: '', code: '', phone: '', siteIds: [] };
+  modal({
+    title: isEdit ? `تعديل: ${e.name}` : 'مهندس جديد',
+    submitLabel: isEdit ? 'حفظ' : 'إنشاء الحساب',
+    body: `
+      <div class="field"><label>الاسم بالكامل *</label><input class="input" name="fullName" value="${esc(e.name)}" required /></div>
+      <div class="grid-2">
+        <div class="field"><label>الكود (للدخول) *</label>
+          <input class="input ltr" name="code" value="${esc(e.code)}" ${isEdit ? 'disabled' : ''} placeholder="E012" />
+          ${isEdit ? '<span class="hint">الكود لا يتغير.</span>' : '<span class="hint">حروف إنجليزي وأرقام، زي كود الموظف.</span>'}</div>
+        <div class="field"><label>الموبايل</label><input class="input ltr" name="phone" value="${esc(e.phone || '')}" placeholder="01xxxxxxxxx" /></div>
+      </div>
+      ${isEdit ? '' : `<div class="field"><label>كلمة السر *</label>
+        <div class="row"><input class="input ltr" name="password" style="flex:1" value="${genPassword()}" />
+        <button type="button" class="btn" data-gen>توليد</button></div>
+        <span class="hint">انسخها وابعتها للمهندس مع الكود.</span></div>`}
+      <div class="field"><label>المواقع المسموح له يسجل فيها</label>${sitesChecklist(e.siteIds || [])}</div>`,
+    onOpen: (form) => {
+      const gen = form.querySelector('[data-gen]');
+      if (gen) gen.addEventListener('click', () => (form.password.value = genPassword()));
+    },
+    onSubmit: async (form) => {
+      const name = form.fullName.value.trim();
+      const phone = form.phone.value.trim();
+      const siteIds = [...form.querySelectorAll('input[name=sites]:checked')].map((i) => i.value);
+      if (name.length < 3) throw new Error('اكتب الاسم بالكامل.');
+      if (isEdit) {
+        await updateEngineer(e.id, { name, phone, siteIds });
+        refresh('engineers');
+        toast('تم الحفظ', 'ok');
+        return;
+      }
+      const code = form.code.value.trim().toUpperCase();
+      const password = form.password.value;
+      await fn('createEngineer', { name, code, phone, password, siteIds });
+      refresh('engineers');
+      // Show credentials once so the admin can send them.
+      modal({
+        title: 'تم إنشاء الحساب ✅',
+        body: `<p>ابعت البيانات دي للمهندس:</p>
+          <div class="card card-b" style="background:var(--surface-2)">
+            <div>الاسم: <b>${esc(name)}</b></div>
+            <div>الكود: <b class="ltr">${esc(code)}</b></div>
+            <div>كلمة السر: <b class="ltr">${esc(password)}</b></div>
+          </div>
+          <div class="row" style="margin-top:12px"><button type="button" class="btn" data-copy>نسخ الرسالة</button></div>`,
+        onOpen: (f) =>
+          f.querySelector('[data-copy]').addEventListener('click', async () => {
+            const txt = `أهلاً م/ ${name}\nبيانات دخول تطبيق الحضور:\nالكود: ${code}\nكلمة السر: ${password}`;
+            try {
+              await navigator.clipboard.writeText(txt);
+              toast('تم النسخ', 'ok');
+            } catch {
+              toast('تعذر النسخ', 'bad');
+            }
+          }),
+      });
+    },
+  });
+}
+
+return { render };
+})();
+
+// ===== js/pages/reports.js =====
+const __m_js_pages_reports = (() => {
+const { attendanceRange } = __m_js_api;
+const { getState, subscribe } = __m_js_store;
+const { esc, $, todayKey, addDaysKey, weekdayOfKey, weekdayIndexOfKey, dateKey, toDate, fmtTime, fmtTime24, fmtDuration, fmtHours, parseHHMM, badge, flagBadges, icon, toast, withBusy, FLAG_LABELS, } = __m_js_ui;
+const { showPhotos } = __m_js_pages_today;
+
+
+
+
+function render(page) {
+  const today = todayKey();
+  const monthStart = `${today.slice(0, 8)}01`;
+  let rows = [];
+  let result = null;
+
+  page.innerHTML = `
+    <section class="card"><div class="card-b">
+      <div class="filters">
+        <div class="field"><label>من</label><input class="input ltr" type="date" id="from" value="${monthStart}" max="${today}" /></div>
+        <div class="field"><label>إلى</label><input class="input ltr" type="date" id="to" value="${today}" max="${today}" /></div>
+        <div class="field"><label>المهندس</label><select class="input" id="eng"></select></div>
+        <div class="field"><label>الموقع</label><select class="input" id="site"></select></div>
+        <div class="row" style="padding-bottom:2px">
+          <button class="btn primary" id="run">${icon('search')} عرض التقرير</button>
+          <button class="btn" id="xls" disabled>${icon('download')} تصدير Excel</button>
+        </div>
+      </div>
+      <div class="row small muted" style="margin-top:10px">
+        اختصارات:
+        <a href="#" data-range="month">الشهر الحالي</a> ·
+        <a href="#" data-range="prev">الشهر اللي فات</a> ·
+        <a href="#" data-range="week">آخر 7 أيام</a>
+      </div>
+    </div></section>
+    <section class="card"><div class="card-h"><h3>الملخص لكل مهندس</h3><span class="muted small" id="meta"></span></div>
+      <div class="card-b flush table-wrap" id="summary"><div class="empty">اختار الفترة واضغط "عرض التقرير".</div></div></section>
+    <section class="card"><div class="card-h"><h3>التفاصيل</h3></div>
+      <div class="card-b flush table-wrap" id="detail"></div></section>
+    <div class="notice small">الأوفر تايم = ساعات التواجد الزيادة عن اليوم الرسمي (من بداية لنهاية الدوام في الإعدادات)، وكل ساعات أيام الإجازة. الغياب = أيام عمل رسمية بدون أي تسجيل (من تاريخ إنشاء حساب المهندس).</div>`;
+
+  const fillFilters = () => {
+    const { engineers, sites } = getState();
+    const eSel = $('#eng', page);
+    const sSel = $('#site', page);
+    const ev = eSel.value;
+    const sv = sSel.value;
+    eSel.innerHTML = `<option value="">كل المهندسين</option>${engineers.map((e) => `<option value="${esc(e.id)}">${esc(e.name)}</option>`).join('')}`;
+    sSel.innerHTML = `<option value="">كل المواقع</option>${sites.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}`;
+    eSel.value = ev;
+    sSel.value = sv;
+  };
+
+  page.querySelectorAll('[data-range]').forEach((a) =>
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const kind = a.dataset.range;
+      let from = monthStart;
+      let to = today;
+      if (kind === 'prev') {
+        to = addDaysKey(monthStart, -1);
+        from = `${to.slice(0, 8)}01`;
+      } else if (kind === 'week') {
+        from = addDaysKey(today, -6);
+      }
+      $('#from', page).value = from;
+      $('#to', page).value = to;
+      run();
+    })
+  );
+
+  const run = async () => {
+    const from = $('#from', page).value;
+    const to = $('#to', page).value;
+    if (!from || !to || from > to) return toast('راجع الفترة', 'bad');
+    await withBusy($('#run', page), async () => {
+      rows = await attendanceRange(from, to);
+      const eng = $('#eng', page).value;
+      const site = $('#site', page).value;
+      if (eng) rows = rows.filter((r) => r.uid === eng);
+      if (site) rows = rows.filter((r) => r.siteId === site);
+      result = compute(rows, from, to, eng, site);
+      drawResult(from, to);
+      $('#xls', page).disabled = false;
+    }).catch((err) => toast(err.message, 'bad'));
+  };
+
+  const drawResult = (from, to) => {
+    const { summary, workdayCount } = result;
+    $('#meta', page).textContent = `${from} ← ${to} · ${workdayCount} يوم عمل رسمي · ${rows.length} تسجيل`;
+    $('#summary', page).innerHTML = summary.length
+      ? `<table class="t"><thead><tr>
+          <th>المهندس</th><th>أيام حضور</th><th>غياب</th><th>أيام تأخير</th><th>إجمالي التأخير</th>
+          <th>ساعات التواجد</th><th>أوفر تايم</th><th>أيام إجازة اشتغلها</th><th>بدون انصراف</th>
+        </tr></thead><tbody>${summary
+          .map(
+            (s) => `<tr>
+            <td class="person"><b>${esc(s.name)}</b><span class="ltr">${esc(s.code)}</span></td>
+            <td class="num">${s.presentDays}</td>
+            <td class="num">${s.absentDays == null ? '—' : s.absentDays ? badge(s.absentDays, 'bad') : 0}</td>
+            <td class="num">${s.lateDays ? badge(s.lateDays, 'warn') : 0}</td>
+            <td class="num">${fmtDuration(s.lateMinutes)}</td>
+            <td class="num">${fmtHours(s.totalMinutes)}</td>
+            <td class="num">${fmtHours(s.overtimeMinutes)}</td>
+            <td class="num">${s.offDaysWorked}</td>
+            <td class="num">${s.noCheckout ? badge(s.noCheckout, 'bad') : 0}</td></tr>`
+          )
+          .join('')}</tbody></table>`
+      : `<div class="empty">مفيش بيانات في الفترة دي.</div>`;
+
+    $('#detail', page).innerHTML = rows.length
+      ? `<table class="t"><thead><tr>
+          <th>التاريخ</th><th>المهندس</th><th>الموقع</th><th>حضور</th><th>انصراف</th><th>المدة</th><th>ملاحظات</th><th></th>
+        </tr></thead><tbody>${rows
+          .map(
+            (r) => `<tr>
+            <td class="num">${esc(r.date)}<div class="muted small">${weekdayOfKey(r.date)}</div></td>
+            <td class="person"><b>${esc(r.name)}</b><span class="ltr">${esc(r.code)}</span></td>
+            <td>${esc(r.siteName)}</td>
+            <td class="num">${fmtTime(r.checkInAt)}</td>
+            <td class="num">${r.checkOutAt ? fmtTime(r.checkOutAt) : '—'}</td>
+            <td class="num">${r.status === 'open' ? badge('في الموقع', 'ok') : fmtDuration(r.durationMinutes)}</td>
+            <td>${r.late ? badge(`متأخر ${fmtDuration(r.lateMinutes)}`, 'warn') : ''} ${flagBadges(r.flags)}</td>
+            <td class="actions"><button class="btn sm" data-photos="${esc(r.id)}">${icon('camera')}</button></td></tr>`
+          )
+          .join('')}</tbody></table>`
+      : '';
+  };
+
+  page.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-photos]');
+    if (b) showPhotos(rows.find((r) => r.id === b.dataset.photos));
+  });
+  $('#run', page).addEventListener('click', run);
+  $('#xls', page).addEventListener('click', () => exportExcel($('#from', page).value, $('#to', page).value));
+
+  const exportExcel = (from, to) => {
+    if (!window.XLSX) return toast('مكتبة Excel لم تُحمّل، تأكد من الإنترنت', 'bad');
+    if (!result) return;
+    const sum = result.summary.map((s) => ({
+      'الكود': s.code,
+      'الاسم': s.name,
+      'أيام الحضور': s.presentDays,
+      'أيام الغياب': s.absentDays ?? '',
+      'أيام التأخير': s.lateDays,
+      'إجمالي التأخير (دقيقة)': s.lateMinutes,
+      'ساعات التواجد': Number(fmtHours(s.totalMinutes)),
+      'ساعات أوفر تايم': Number(fmtHours(s.overtimeMinutes)),
+      'أيام إجازة اشتغلها': s.offDaysWorked,
+      'تسجيلات بدون انصراف': s.noCheckout,
+    }));
+    const det = rows.map((r) => ({
+      'التاريخ': r.date,
+      'اليوم': weekdayOfKey(r.date),
+      'الكود': r.code,
+      'الاسم': r.name,
+      'الموقع': r.siteName,
+      'وقت الحضور': fmtTime24(r.checkInAt),
+      'وقت الانصراف': r.checkOutAt ? fmtTime24(r.checkOutAt) : '',
+      'المدة (دقيقة)': r.durationMinutes ?? '',
+      'متأخر': r.late ? 'نعم' : '',
+      'دقائق التأخير': r.lateMinutes || '',
+      'مسافة الحضور (م)': r.checkIn?.distance ?? '',
+      'مسافة الانصراف (م)': r.checkOut?.distance ?? '',
+      'ملاحظات': (r.flags || []).map((f) => FLAG_LABELS[f]?.[0] || f).join('، '),
+    }));
+    const wb = XLSX.utils.book_new();
+    wb.Workbook = { Views: [{ RTL: true }] };
+    const ws1 = XLSX.utils.json_to_sheet(sum);
+    const ws2 = XLSX.utils.json_to_sheet(det);
+    ws1['!cols'] = Object.keys(sum[0] || { a: 1 }).map((k) => ({ wch: Math.max(12, k.length + 4) }));
+    ws2['!cols'] = Object.keys(det[0] || { a: 1 }).map((k) => ({ wch: Math.max(12, k.length + 4) }));
+    XLSX.utils.book_append_sheet(wb, ws1, 'ملخص');
+    XLSX.utils.book_append_sheet(wb, ws2, 'تفصيلي');
+    XLSX.writeFile(wb, `حضور_المواقع_${from}_${to}.xlsx`);
+  };
+
+  const unsub = subscribe(fillFilters);
+  fillFilters();
+  return unsub;
+}
+
+/** Aggregates attendance rows into a per-engineer payroll-ready summary. */
+function compute(rows, from, to, engFilter, siteFilter) {
+  const { engineers, settings } = getState();
+  const start = parseHHMM(settings.workStart) ?? 480;
+  const end = parseHHMM(settings.workEnd) ?? 1020;
+  const standard = Math.max(0, end - start);
+  const workDays = settings.workDays || [];
+  const lastDay = to < todayKey() ? to : todayKey();
+
+  const workdayKeys = [];
+  for (let k = from; k <= lastDay; k = addDaysKey(k, 1)) {
+    if (workDays.includes(weekdayIndexOfKey(k))) workdayKeys.push(k);
+  }
+
+  const people = new Map();
+  const ensure = (uid, name, code) => {
+    if (!people.has(uid)) people.set(uid, { uid, name, code, days: new Map(), late: new Map(), noCheckout: 0 });
+    return people.get(uid);
+  };
+  if (!siteFilter) {
+    engineers
+      .filter((e) => (engFilter ? e.id === engFilter : e.active))
+      .forEach((e) => ensure(e.id, e.name, e.code));
+  }
+
+  for (const r of rows) {
+    const p = ensure(r.uid, r.name, r.code);
+    const minutes = r.durationMinutes || 0;
+    const d = p.days.get(r.date) || { minutes: 0, nonWorkday: !!r.nonWorkday };
+    d.minutes += minutes;
+    p.days.set(r.date, d);
+    if (r.late) p.late.set(r.date, Math.max(p.late.get(r.date) || 0, r.lateMinutes || 0));
+    if (r.status === 'auto_closed' || (r.flags || []).includes('no_checkout')) p.noCheckout += 1;
+  }
+
+  const summary = [...people.values()].map((p) => {
+    const eng = engineers.find((e) => e.id === p.uid);
+    const created = eng?.createdAt ? dateKey(toDate(eng.createdAt)) : from;
+    const expected = workdayKeys.filter((k) => k >= created);
+    let presentWork = 0;
+    let offDaysWorked = 0;
+    let totalMinutes = 0;
+    let overtimeMinutes = 0;
+    for (const [key, d] of p.days) {
+      const isWork = workDays.includes(weekdayIndexOfKey(key));
+      totalMinutes += d.minutes;
+      if (isWork) {
+        presentWork += 1;
+        overtimeMinutes += Math.max(0, d.minutes - standard);
+      } else {
+        offDaysWorked += 1;
+        overtimeMinutes += d.minutes;
+      }
+    }
+    const absentDays = siteFilter ? null : Math.max(0, expected.length - expected.filter((k) => p.days.has(k)).length);
+    return {
+      uid: p.uid,
+      name: p.name || eng?.name || '—',
+      code: p.code || eng?.code || '',
+      presentDays: p.days.size,
+      presentWork,
+      absentDays,
+      lateDays: p.late.size,
+      lateMinutes: [...p.late.values()].reduce((a, b) => a + b, 0),
+      totalMinutes,
+      overtimeMinutes,
+      offDaysWorked,
+      noCheckout: p.noCheckout,
+    };
+  });
+  summary.sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar'));
+  return { summary, workdayCount: workdayKeys.length };
+}
+
+return { render, compute };
+})();
+
+// ===== js/pages/security.js =====
+const __m_js_pages_security = (() => {
+const { listAttempts, watch } = __m_js_api;
+const { esc, $, badge, fmtDateTime, REASON_LABELS, mapsLink } = __m_js_ui;
+
+
+const SERIOUS = new Set(['mock_location', 'device_mismatch']);
+
+function render(page) {
+  let rows = [];
+  let onlySerious = false;
+
+  page.innerHTML = `
+    <div class="notice">هنا كل محاولة تسجيل اترفضت. محاولات <b>تزييف الموقع</b> و<b>الموبايل غير المسجل</b> بيوصلك عليها إشعار تليجرام فورًا.</div>
+    <section class="card">
+      <div class="card-h"><h3>المحاولات المرفوضة (آخر 300)</h3>
+        <label class="switch small"><input type="checkbox" id="serious" /> المحاولات الخطيرة بس</label></div>
+      <div class="card-b flush table-wrap" id="list"><div class="empty"><span class="spinner"></span></div></div>
+    </section>`;
+
+  const draw = () => {
+    const list = onlySerious ? rows.filter((r) => SERIOUS.has(r.reason)) : rows;
+    $('#list', page).innerHTML = list.length
+      ? `<table class="t"><thead><tr><th>الوقت</th><th>المهندس</th><th>العملية</th><th>السبب</th><th>التفاصيل</th></tr></thead><tbody>${list
+          .map((r) => {
+            const [label, kind] = REASON_LABELS[r.reason] || [r.reason, ''];
+            return `<tr>
+              <td class="num">${fmtDateTime(r.createdAt)}</td>
+              <td class="person"><b>${esc(r.name || 'غير معروف')}</b><span class="ltr">${esc(r.code || '')}</span></td>
+              <td>${r.type === 'in' ? 'حضور' : 'انصراف'}</td>
+              <td>${badge(label, kind)}</td>
+              <td class="small">${esc(r.message || '')} ${r.accuracy != null ? `<span class="muted">· دقة ±${Math.round(r.accuracy)} م</span>` : ''}
+                ${mapsLink(r.lat, r.lng, 'المكان ↗')}</td></tr>`;
+          })
+          .join('')}</tbody></table>`
+      : `<div class="empty">مفيش محاولات مرفوضة 👍</div>`;
+  };
+
+  $('#serious', page).addEventListener('change', (e) => {
+    onlySerious = e.target.checked;
+    draw();
+  });
+
+  const load = async () => {
+    try {
+      rows = await listAttempts(300);
+      draw();
+    } catch (err) {
+      $('#list', page).innerHTML = `<div class="empty">${esc(err.message)}</div>`;
+    }
+  };
+  load();
+  return watch('attempts', load);
+}
+
+return { render };
+})();
+
+// ===== js/pages/settings.js =====
+const __m_js_pages_settings = (() => {
+const { fn, saveSettings, getChatIds, saveChatIds } = __m_js_api;
+const { getState, subscribe, refresh } = __m_js_store;
+const { esc, $, WEEKDAYS, parseHHMM, toast, withBusy, icon } = __m_js_ui;
+
+
+
+function render(page) {
+  page.innerHTML = `
+    <section class="card">
+      <div class="card-h"><h3>مواعيد العمل وقواعد التسجيل</h3></div>
+      <form class="card-b" id="rules" novalidate></form>
+    </section>
+    <section class="card">
+      <div class="card-h"><h3>إشعارات تليجرام</h3></div>
+      <div class="card-b" id="tg"></div>
+    </section>
+    <section class="card">
+      <div class="card-h"><h3>المديرين</h3></div>
+      <form class="card-b" id="admins" novalidate>
+        <p class="muted" style="margin-top:0">لإضافة مدير: أنشئ له حساب من Supabase → Authentication → Add user (وعلّم Auto Confirm)، وبعدين اكتب الإيميل هنا.</p>
+        <div class="row"><input class="input ltr" name="email" type="email" placeholder="name@company.com" style="flex:1;min-width:220px" />
+        <button class="btn" type="submit">إضافة مدير</button></div>
+      </form>
+    </section>`;
+
+  const drawRules = () => {
+    const s = getState().settings;
+    const form = $('#rules', page);
+    if (form.dataset.dirty === '1') return;
+    form.innerHTML = `
+      <div class="field"><label>اسم الشركة</label><input class="input" name="companyName" value="${esc(s.companyName)}" /></div>
+      <div class="grid-3">
+        <div class="field"><label>بداية الدوام</label><input class="input ltr" type="time" name="workStart" value="${esc(s.workStart)}" /></div>
+        <div class="field"><label>نهاية الدوام</label><input class="input ltr" type="time" name="workEnd" value="${esc(s.workEnd)}" /></div>
+        <div class="field"><label>سماحية التأخير (دقيقة)</label><input class="input ltr" type="number" min="0" max="120" name="graceMinutes" value="${esc(s.graceMinutes)}" /></div>
+      </div>
+      <div class="field"><label>أيام العمل</label><div class="checks">${WEEKDAYS.map(
+        (d) => `<label class="check"><input type="checkbox" name="workDays" value="${d.i}" ${(s.workDays || []).includes(d.i) ? 'checked' : ''}/> ${d.label}</label>`
+      ).join('')}</div></div>
+      <div class="grid-3">
+        <div class="field"><label>أقصى خطأ مسموح في الـ GPS (متر)</label><input class="input ltr" type="number" min="10" max="200" name="maxAccuracy" value="${esc(s.maxAccuracy)}" />
+          <span class="hint">50 مناسب. لو المهندسين بيشتكوا في مواقع مقفولة زوّده لـ 75.</span></div>
+        <div class="field"><label>تنبيه "لم يسجلوا حضور" الساعة</label><input class="input ltr" type="time" name="missedAlertTime" value="${esc(s.missedAlertTime)}" /></div>
+        <div class="field"><label>ملخص اليوم الساعة</label><input class="input ltr" type="time" name="dailySummaryTime" value="${esc(s.dailySummaryTime)}" /></div>
+      </div>
+      <div class="field"><label class="switch"><input type="checkbox" name="selfieRequired" ${s.selfieRequired ? 'checked' : ''}/> السيلفي إجباري مع كل تسجيل (موصى به)</label></div>
+      <div class="field"><label>الاحتفاظ بصور السيلفي (يوم)</label><input class="input ltr" type="number" min="7" max="3650" name="selfieRetentionDays" value="${esc(s.selfieRetentionDays)}" style="max-width:200px" />
+        <span class="hint">الصور الأقدم بتتمسح تلقائيًا علشان المساحة المجانية (1 جيجا) متخلصش. 90 يوم مناسب.</span></div>
+      <div class="field"><label class="switch"><input type="checkbox" name="allowCheckoutOutside" ${s.allowCheckoutOutside ? 'checked' : ''}/> السماح بالانصراف من خارج الموقع (بيتعلّم عليه في التقارير ويوصلك إشعار)</label></div>
+      <div class="form-error" data-error></div>
+      <button class="btn primary" type="submit">حفظ الإعدادات</button>`;
+  };
+
+  $('#rules', page).addEventListener('input', (e) => (e.currentTarget.dataset.dirty = '1'));
+  $('#rules', page).addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.currentTarget;
+    const err = f.querySelector('[data-error]');
+    err.textContent = '';
+    const data = {
+      companyName: f.companyName.value.trim(),
+      workStart: f.workStart.value,
+      workEnd: f.workEnd.value,
+      graceMinutes: Number(f.graceMinutes.value) || 0,
+      workDays: [...f.querySelectorAll('input[name=workDays]:checked')].map((i) => Number(i.value)),
+      maxAccuracy: Number(f.maxAccuracy.value) || 50,
+      missedAlertTime: f.missedAlertTime.value,
+      dailySummaryTime: f.dailySummaryTime.value,
+      selfieRequired: f.selfieRequired.checked,
+      allowCheckoutOutside: f.allowCheckoutOutside.checked,
+      selfieRetentionDays: Number(f.selfieRetentionDays.value) || 90,
+    };
+    if (parseHHMM(data.workStart) == null || parseHHMM(data.workEnd) == null) return (err.textContent = 'راجع مواعيد الدوام.');
+    if (parseHHMM(data.workEnd) <= parseHHMM(data.workStart)) return (err.textContent = 'نهاية الدوام لازم تكون بعد البداية.');
+    if (!data.workDays.length) return (err.textContent = 'اختار يوم عمل واحد على الأقل.');
+    try {
+      await withBusy(f.querySelector('button[type=submit]'), () => saveSettings(data));
+      f.dataset.dirty = '0';
+      refresh('settings');
+      toast('تم حفظ الإعدادات', 'ok');
+    } catch (ex) {
+      err.textContent = ex.message;
+    }
+  });
+
+  // ---- Telegram ----
+  const tg = $('#tg', page);
+  tg.innerHTML = `
+    <ol class="small" style="margin-top:0;padding-inline-start:18px;line-height:2">
+      <li>افتح تليجرام وابعت <b>/start</b> للبوت بتاعك (أو ضيفه في جروب الإدارة وابعت أي رسالة في الجروب).</li>
+      <li>اضغط "اكتشاف المحادثات" واختار المحادثة.</li>
+      <li>احفظ، وجرّب برسالة تجربة.</li>
+    </ol>
+    <div class="field"><label>Chat IDs (ممكن أكتر من واحد، افصل بفاصلة)</label>
+      <input class="input ltr" id="chatIds" placeholder="123456789, -1001234567890" /></div>
+    <div class="row">
+      <button class="btn primary" id="saveTg">حفظ</button>
+      <button class="btn" id="discover">اكتشاف المحادثات</button>
+      <button class="btn" id="test">${icon('send')} رسالة تجربة</button>
+    </div>
+    <div id="chats" style="margin-top:14px"></div>`;
+
+  getChatIds()
+    .then((ids) => ($('#chatIds', page).value = ids))
+    .catch(() => {});
+
+  const keepChatIds = async () => {
+    await saveChatIds($('#chatIds', page).value.trim());
+  };
+
+  $('#saveTg', page).addEventListener('click', (e) =>
+    withBusy(e.currentTarget, keepChatIds)
+      .then(() => toast('تم الحفظ', 'ok'))
+      .catch((err) => toast(err.message, 'bad'))
+  );
+  $('#test', page).addEventListener('click', (e) =>
+    withBusy(e.currentTarget, async () => {
+      await keepChatIds();
+      const { results } = await fn('telegramTest');
+      const failed = results.filter((r) => !r.ok);
+      if (failed.length) toast(`فشل الإرسال لـ ${failed.map((f) => f.chatId).join(', ')}: ${failed[0].error}`, 'bad');
+      else toast('تم إرسال رسالة التجربة ✅', 'ok');
+    }).catch((err) => toast(err.message, 'bad'))
+  );
+  $('#discover', page).addEventListener('click', (e) =>
+    withBusy(e.currentTarget, async () => {
+      const { chats } = await fn('telegramDiscover');
+      const box = $('#chats', page);
+      if (!chats.length) {
+        box.innerHTML = `<div class="notice warn">مفيش محادثات. ابعت /start للبوت الأول وحاول تاني.</div>`;
+        return;
+      }
+      box.innerHTML = `<div class="checks">${chats
+        .map(
+          (c) => `<button type="button" class="check" data-add="${esc(c.id)}">${icon('plus')} ${esc(c.title || c.id)}
+          <span class="muted small ltr">${esc(c.id)}</span></button>`
+        )
+        .join('')}</div>`;
+    }).catch((err) => toast(err.message, 'bad'))
+  );
+  $('#chats', page).addEventListener('click', (e) => {
+    const b = e.target.closest('[data-add]');
+    if (!b) return;
+    const input = $('#chatIds', page);
+    const ids = new Set(input.value.split(/[,\s]+/).filter(Boolean));
+    ids.add(b.dataset.add);
+    input.value = [...ids].join(', ');
+    toast('اتضافت — اضغط حفظ', 'ok');
+  });
+
+  // ---- Admins ----
+  $('#admins', page).addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.currentTarget;
+    const email = f.email.value.trim();
+    if (!email) return;
+    try {
+      await withBusy(f.querySelector('button'), () => fn('addAdmin', { email }));
+      f.email.value = '';
+      toast('تمت إضافة المدير. يسجل خروج ودخول علشان الصلاحية تشتغل.', 'ok');
+    } catch (err) {
+      toast(err.message, 'bad');
+    }
+  });
+
+  const unsub = subscribe(drawRules);
+  drawRules();
+  return unsub;
+}
+
+return { render };
+})();
+
+// ===== js/app.js =====
+{
+const { configured, fn, isAdmin, onAuth, signIn, signOut, resetPasswordEmail, setNewPassword } = __m_js_api;
+const { esc, icon, toast, modal, $ } = __m_js_ui;
+const { startStore, stopStore, getState, subscribe } = __m_js_store;
+const today = __m_js_pages_today;
+const sites = __m_js_pages_sites;
+const engineers = __m_js_pages_engineers;
+const reports = __m_js_pages_reports;
+const security = __m_js_pages_security;
+const settings = __m_js_pages_settings;
+
+
+
+
+
+
+
+
+
+const ROUTES = {
+  today: { title: 'لوحة اليوم', icon: 'today', page: today },
+  sites: { title: 'المواقع', icon: 'site', page: sites },
+  engineers: { title: 'المهندسين', icon: 'users', page: engineers },
+  reports: { title: 'التقارير', icon: 'report', page: reports },
+  security: { title: 'سجل الأمان', icon: 'shield', page: security },
+  settings: { title: 'الإعدادات', icon: 'settings', page: settings },
+};
+
+const root = document.getElementById('app');
+let cleanup = null;
+let currentUser = null;
+let bootedFor = null;
+
+const brandMark = `<div class="brand-mark"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 2.5a7 7 0 0 0-7 7c0 5.3 7 12 7 12s7-6.7 7-12a7 7 0 0 0-7-7zm0 9.6a2.6 2.6 0 1 1 0-5.2 2.6 2.6 0 0 1 0 5.2z"/></svg></div>`;
+
+/* ---------------- screens ---------------- */
+
+function renderNotConfigured() {
+  root.className = '';
+  root.innerHTML = `
+    <div class="auth-wrap"><div class="auth-card">
+      ${brandMark}
+      <h1>لوحة التحكم غير مربوطة بعد</h1>
+      <p>افتح الملف <code class="k">admin/js/config.js</code> وحط فيه Project URL والـ anon key بتوع مشروع Supabase.</p>
+      <div class="notice">الخطوات بالتفصيل في <b>docs/SETUP_AR.md</b>.</div>
+    </div></div>`;
+}
+
+function renderLogin() {
+  root.className = '';
+  root.innerHTML = `
+    <div class="auth-wrap">
+      <form class="auth-card" id="login" novalidate>
+        ${brandMark}
+        <h1>نظام حضور المواقع</h1>
+        <p>تسجيل دخول الإدارة</p>
+        <div class="field"><label for="email">البريد الإلكتروني</label>
+          <input class="input ltr" id="email" type="email" autocomplete="username" required /></div>
+        <div class="field"><label for="password">كلمة السر</label>
+          <input class="input ltr" id="password" type="password" autocomplete="current-password" required /></div>
+        <div class="form-error" id="err"></div>
+        <button class="btn primary block" type="submit">دخول</button>
+        <div style="margin-top:14px;text-align:center"><a href="#" id="forgot" class="small">نسيت كلمة السر؟</a></div>
+      </form>
+    </div>`;
+  const form = $('#login');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button[type=submit]');
+    $('#err').textContent = '';
+    btn.disabled = true;
+    try {
+      await signIn($('#email').value.trim(), $('#password').value);
+    } catch (err) {
+      $('#err').textContent = authError(err);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  $('#forgot').addEventListener('click', async (e) => {
+    e.preventDefault();
+    const email = $('#email').value.trim();
+    if (!email) return ($('#err').textContent = 'اكتب الإيميل الأول.');
+    try {
+      await resetPasswordEmail(email);
+      toast('لو الإيميل مسجل، هيوصلك رابط لتغيير كلمة السر', 'ok');
+    } catch (err) {
+      $('#err').textContent = err.message;
+    }
+  });
+}
+
+function renderNotAdmin(user) {
+  root.className = '';
+  root.innerHTML = `
+    <div class="auth-wrap"><div class="auth-card">
+      ${brandMark}
+      <h1>الحساب ده مش مدير</h1>
+      <p class="ltr" style="text-align:right">${esc(user.email || '')}</p>
+      <div class="notice" style="margin-bottom:16px">لو دي أول مرة تشغّل النظام، اضغط الزر تحت علشان تتفعّل كأول مدير. الزر بيشتغل مرة واحدة بس، وبعدها أي مدير جديد يتضاف من الإعدادات.</div>
+      <div class="form-error" id="err"></div>
+      <button class="btn primary block" id="boot">تفعيل كأول مدير</button>
+      <button class="btn block" id="out" style="margin-top:10px">تسجيل خروج</button>
+    </div></div>`;
+  $('#boot').addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    try {
+      await fn('bootstrap');
+      toast('تم تفعيلك كمدير', 'ok');
+      bootedFor = null;
+      await boot(user);
+    } catch (err) {
+      $('#err').textContent = err.message;
+      e.target.disabled = false;
+    }
+  });
+  $('#out').addEventListener('click', () => signOut());
+}
+
+function renderShell(user) {
+  root.className = '';
+  root.innerHTML = `
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">${brandMark}<div><b>حضور المواقع</b><span id="companyName"></span></div></div>
+        <nav class="nav">
+          ${Object.entries(ROUTES)
+            .map(([k, r]) => `<a href="#/${k}" data-route="${k}">${icon(r.icon)}<span>${r.title}</span></a>`)
+            .join('')}
+        </nav>
+        <div class="foot">كل الأوقات بتوقيت القاهرة</div>
+      </aside>
+      <div class="main">
+        <header class="topbar">
+          <h2 id="pageTitle"></h2>
+          <div class="who"><span class="ltr">${esc(user.email || '')}</span>
+            <button class="btn sm" id="logout">${icon('logout')} خروج</button></div>
+        </header>
+        <main class="content" id="page"></main>
+      </div>
+    </div>`;
+  $('#logout').addEventListener('click', () => signOut());
+  const setCompany = () => {
+    const el = $('#companyName');
+    if (el) el.textContent = getState().settings.companyName || '';
+  };
+  if (!renderShell.subscribed) {
+    subscribe(setCompany);
+    renderShell.subscribed = true;
+  }
+  setCompany();
+}
+
+function route() {
+  if (!currentUser || !$('#page')) return;
+  const key = (location.hash.replace(/^#\/?/, '') || 'today').split('?')[0];
+  const r = ROUTES[key] || ROUTES.today;
+  document.querySelectorAll('.nav a').forEach((a) => a.classList.toggle('active', a.dataset.route === key));
+  $('#pageTitle').textContent = r.title;
+  document.title = `${r.title} — حضور المواقع`;
+  if (typeof cleanup === 'function') cleanup();
+  cleanup = null;
+  // Fresh element per route so page-level event listeners never accumulate.
+  const old = $('#page');
+  const page = old.cloneNode(false);
+  old.replaceWith(page);
+  try {
+    cleanup = r.page.render(page);
+  } catch (err) {
+    console.error(err);
+    page.innerHTML = `<div class="card card-b">حصل خطأ أثناء تحميل الصفحة: ${esc(err.message)}</div>`;
+  }
+}
+
+function authError(err) {
+  const msg = String(err?.message || '').toLowerCase();
+  if (msg.includes('invalid login') || msg.includes('invalid credentials')) return 'الإيميل أو كلمة السر غلط.';
+  if (msg.includes('email not confirmed')) return 'الإيميل لسه متأكدش. فعّله من Supabase → Authentication.';
+  if (msg.includes('rate') || msg.includes('too many')) return 'محاولات كتير. استنى شوية وحاول تاني.';
+  if (msg.includes('fetch') || msg.includes('network')) return 'مشكلة في الاتصال بالإنترنت.';
+  return 'تعذر تسجيل الدخول.';
+}
+
+async function boot(user) {
+  if (bootedFor === user.id) return; // token refreshes fire auth events too
+  bootedFor = user.id;
+  if (!(await isAdmin(user.id))) {
+    currentUser = null;
+    return renderNotAdmin(user);
+  }
+  currentUser = user;
+  renderShell(user);
+  startStore();
+  route();
+}
+
+function askNewPassword() {
+  modal({
+    title: 'كلمة سر جديدة',
+    submitLabel: 'حفظ',
+    body: `<div class="field"><label>كلمة السر الجديدة (8 حروف على الأقل)</label>
+      <input class="input ltr" name="pw" type="password" autocomplete="new-password" /></div>`,
+    onSubmit: async (form) => {
+      if (form.pw.value.length < 8) throw new Error('كلمة السر قصيرة.');
+      await setNewPassword(form.pw.value);
+      toast('تم تغيير كلمة السر', 'ok');
+    },
+  });
+}
+
+window.addEventListener('hashchange', route);
+
+if (!configured) {
+  renderNotConfigured();
+} else {
+  onAuth((user, event) => {
+    if (event === 'PASSWORD_RECOVERY') setTimeout(askNewPassword, 300);
+    if (!user) {
+      if (typeof cleanup === 'function') cleanup();
+      cleanup = null;
+      currentUser = null;
+      bootedFor = null;
+      stopStore();
+      return renderLogin();
+    }
+    // Don't await inside the auth callback (supabase-js recommendation).
+    setTimeout(() => boot(user).catch((err) => {
+      console.error(err);
+      bootedFor = null;
+      toast('تعذر تحميل الحساب', 'bad');
+    }), 0);
+  });
+}
+
+}
+</script>
+</body>
+</html>
