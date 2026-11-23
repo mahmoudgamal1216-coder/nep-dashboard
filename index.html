@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>حضور المواقع — لوحة التحكم</title>
+  <title>نظام الحضور — لوحة التحكم</title>
   <meta name="robots" content="noindex" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f3b5f'/%3E%3Cpath d='M16 7a7 7 0 0 0-7 7c0 5 7 11 7 11s7-6 7-11a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z' fill='%23f2a900'/%3E%3C/svg%3E" />
+  <link rel="icon" type="image/png" href="logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -90,6 +91,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
   background: var(--brand); color: var(--brand-ink); padding: 20px 14px;
   display: flex; flex-direction: column; gap: 6px; position: sticky; top: 0; height: 100vh;
 }
+.brand-mark img { width: 100%; height: 100%; object-fit: contain; background: #fff; border-radius: inherit; padding: 4px; display: block; }
+.brand-mark img + svg { display: none; }
+.auth-logo { display: block; width: 100%; max-width: 300px; height: auto; margin: 0 auto 6px; }
+.auth-card .brand-mark { width: 88px; height: 88px; border-radius: 18px; }
 .sidebar .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; }
 .sidebar .brand .brand-mark { width: 36px; height: 36px; background: rgba(255,255,255,.08); }
 .sidebar .brand b { display: block; font-size: 15px; color: #fff; }
@@ -264,7 +269,7 @@ code.k { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; bor
 </head>
 <body>
   <div id="app" class="boot">
-    <div class="boot-spinner" aria-label="جاري التحميل"></div>
+    <div class="boot-spinner" aria-label="جارٍ التحميل"></div>
   </div>
   <div id="toasts" aria-live="polite"></div>
   <script type="module">
@@ -299,7 +304,7 @@ const sb = createClient(
 );
 
 const must = ({ data, error }) => {
-  if (error) throw new Error(error.message || 'حصل خطأ في قاعدة البيانات');
+  if (error) throw new Error(error.message || 'حدث خطأ في قاعدة البيانات');
   return data;
 };
 
@@ -375,7 +380,7 @@ async function fn(action, params = {}) {
     } catch {
       /* not json */
     }
-    throw new Error(msg || 'تعذر تنفيذ العملية');
+    throw new Error(msg || 'تعذّر تنفيذ العملية');
   }
   return data;
 }
@@ -554,10 +559,10 @@ const WEEKDAYS = [
 const REASON_LABELS = {
   inactive: ['حساب موقوف', 'warn'],
   bad_request: ['بيانات ناقصة', 'warn'],
-  device_mismatch: ['موبايل غير مسجل', 'bad'],
+  device_mismatch: ['هاتف غير مسجل', 'bad'],
   mock_location: ['تزييف موقع', 'bad'],
   low_accuracy: ['إشارة GPS ضعيفة', 'info'],
-  site_not_assigned: ['موقع غير متعين', 'warn'],
+  site_not_assigned: ['موقع غير مخصص', 'warn'],
   site_inactive: ['موقع متوقف', 'warn'],
   outside_geofence: ['خارج النطاق', 'warn'],
   outside_on_checkout: ['انصراف خارج النطاق', 'warn'],
@@ -568,20 +573,20 @@ const REASON_LABELS = {
   selfie_stale: ['سيلفي قديم', 'warn'],
   missions_not_allowed: ['مأموريات غير مسموحة', 'warn'],
   mission_open: ['مأمورية مفتوحة', 'info'],
-  mission_not_approved: ['مأمورية غير متوافق عليها', 'warn'],
-  mission_not_active: ['مفيش مأمورية شغالة', 'info'],
+  mission_not_approved: ['مأمورية غير موافَق عليها', 'warn'],
+  mission_not_active: ['لا توجد مأمورية جارية', 'info'],
 };
 
 const TYPE_LABELS = { in: 'حضور', out: 'انصراف', mission_start: 'بدء مأمورية', mission_end: 'إنهاء مأمورية' };
 
 const MISSION_STATUS = {
-  pending: ['مستني موافقتك', 'warn'],
-  approved: ['متوافق عليها — لسه ماابتدتش', 'info'],
+  pending: ['بانتظار موافقتك', 'warn'],
+  approved: ['موافَق عليها — لم تبدأ', 'info'],
   rejected: ['مرفوضة', 'bad'],
-  active: ['شغالة دلوقتي', 'ok'],
-  done: ['خلصت', ''],
-  cancelled: ['اتلغت', ''],
-  expired: ['انتهت من غير ما تبدأ', ''],
+  active: ['جارية الآن', 'ok'],
+  done: ['منتهية', ''],
+  cancelled: ['ملغاة', ''],
+  expired: ['انتهت دون أن تبدأ', ''],
 };
 
 const FLAG_LABELS = {
@@ -656,7 +661,7 @@ function modal({ title, body, submitLabel = 'حفظ', cancelLabel = 'إلغاء'
       const keep = await onSubmit(form, close);
       if (keep !== false) close();
     } catch (ex) {
-      err.textContent = ex.message || 'حصل خطأ';
+      err.textContent = ex.message || 'حدث خطأ';
     } finally {
       btn.disabled = false;
       btn.innerHTML = label;
@@ -747,7 +752,7 @@ const { listSites, listEngineers, getSettings, watch } = __m_js_api;
 // Live shared data (sites, engineers, settings) used across pages.
 
 const DEFAULT_SETTINGS = {
-  companyName: 'NEP للمقاولات والأعمال الهندسية',
+  companyName: 'NEAP — نصار للهندسة',
   workStart: '08:00',
   workEnd: '17:00',
   graceMinutes: 15,
@@ -828,7 +833,7 @@ function render(page) {
     <div class="row"><div><b>${esc(fmtLongDate())}</b> <span class="muted small">— تحديث مباشر</span></div></div>
     <section class="kpis" id="kpis"></section>
     <section class="card">
-      <div class="card-h"><h3>المواقع الآن</h3><span class="muted small">مين موجود في كل موقع حاليًا</span></div>
+      <div class="card-h"><h3>المواقع الآن</h3><span class="muted small">الموجودون في كل موقع حاليًا</span></div>
       <div class="card-b" id="bySite"></div>
     </section>
     <section class="card">
@@ -853,11 +858,11 @@ function render(page) {
       <div class="card kpi"><div class="label"><span class="dot" style="background:${color}"></span>${label}</div>
       <div class="value">${loaded ? value : '…'}</div></div>`;
     $('#kpis', page).innerHTML = [
-      kpi('مهندسين نشطين', active.length, 'var(--brand)'),
+      kpi('الموظفون النشطون', active.length, 'var(--brand)'),
       kpi('في المواقع الآن', open.length, 'var(--ok)'),
-      kpi('سجلوا حضور اليوم', presentUids.size, 'var(--info)'),
-      kpi('متأخرين', lateUids.size, 'var(--warn)'),
-      kpi(workday ? 'لم يسجلوا' : 'لم يسجلوا (إجازة)', absent.length, 'var(--bad)'),
+      kpi('سجّلوا الحضور اليوم', presentUids.size, 'var(--info)'),
+      kpi('المتأخرون', lateUids.size, 'var(--warn)'),
+      kpi(workday ? 'لم يسجّلوا' : 'لم يسجّلوا (إجازة)', absent.length, 'var(--bad)'),
     ].join('');
 
     // By site
@@ -872,7 +877,7 @@ function render(page) {
             </div>`;
           })
           .join('')}</div>`
-      : `<div class="empty">مفيش مواقع لسه. أضف أول موقع من صفحة <a href="#/sites">المواقع</a>.</div>`;
+      : `<div class="empty">لا توجد مواقع بعد. أضف أول موقع من صفحة <a href="#/sites">المواقع</a>.</div>`;
 
     // Log
     $('#count', page).textContent = loaded ? `${rows.length} تسجيل` : '';
@@ -880,9 +885,9 @@ function render(page) {
     $('#log', page).innerHTML = !loaded
       ? `<div class="empty"><span class="spinner"></span></div>`
       : !sorted.length
-      ? `<div class="empty">مفيش تسجيلات النهارده لسه.</div>`
+      ? `<div class="empty">لا توجد تسجيلات اليوم بعد.</div>`
       : `<table class="t"><thead><tr>
-          <th>المهندس</th><th>الموقع</th><th>الحضور</th><th>الانصراف</th><th>المدة</th><th>الحالة</th><th>المسافة</th><th></th>
+          <th>الموظف</th><th>الموقع</th><th>الحضور</th><th>الانصراف</th><th>المدة</th><th>الحالة</th><th>المسافة</th><th></th>
         </tr></thead><tbody>${sorted
           .map((r) => {
             const dur = r.status === 'open' ? minutesBetween(r.checkInAt, new Date()) : r.durationMinutes;
@@ -910,7 +915,7 @@ function render(page) {
       ? `<div class="chips">${absent
           .map((e) => `<span class="badge bad">${esc(e.name)}${e.phone ? ` · <span class="ltr">${esc(e.phone)}</span>` : ''}</span>`)
           .join('')}</div>`
-      : `<div class="muted">كل المهندسين سجلوا حضور 👏</div>`;
+      : `<div class="muted">سجّل جميع الموظفين حضورهم 👏</div>`;
   };
 
   page.addEventListener('click', async (e) => {
@@ -982,18 +987,18 @@ function render(page) {
       </div>
       <div class="card-b flush table-wrap" id="list"></div>
     </section>
-    <div class="notice">نصف قطر النطاق: ابدأ بـ 150 متر للمواقع العادية، وكبّره للمشروعات الكبيرة (كمباوند مثلًا). المهندس لازم يكون جوه الدايرة علشان يسجل حضور.</div>`;
+    <div class="notice">نصف قطر النطاق: يُنصح بـ 150 مترًا للمواقع العادية، مع زيادته للمشروعات الكبيرة. يجب أن يكون الموظف داخل النطاق ليتمكن من تسجيل الحضور.</div>`;
 
   const draw = () => {
     const { sites, engineers, ready } = getState();
     if (!ready.sites) return ($('#list', page).innerHTML = `<div class="empty"><span class="spinner"></span></div>`);
     const list = sites.filter((s) => !filter || String(s.name).includes(filter) || String(s.address || '').includes(filter));
     if (!list.length) {
-      $('#list', page).innerHTML = `<div class="empty">${sites.length ? 'مفيش نتائج.' : 'مفيش مواقع لسه — اضغط "موقع جديد".'}</div>`;
+      $('#list', page).innerHTML = `<div class="empty">${sites.length ? 'لا توجد نتائج.' : 'لا توجد مواقع بعد — اضغط "موقع جديد".'}</div>`;
       return;
     }
     $('#list', page).innerHTML = `<table class="t"><thead><tr>
-      <th>الموقع</th><th>النطاق</th><th>الإحداثيات</th><th>المهندسين المتعينين</th><th>الحالة</th><th></th>
+      <th>الموقع</th><th>النطاق</th><th>الإحداثيات</th><th>الموظفون المخصصون</th><th>الحالة</th><th></th>
     </tr></thead><tbody>${list
       .map((s) => {
         const count = engineers.filter((e) => (e.siteIds || []).includes(s.id)).length;
@@ -1016,7 +1021,7 @@ function render(page) {
     draw();
   });
   $('#add', page).addEventListener('click', () => openSiteModal());
-  page.addEventListener('click', (e) => handleClick(e).catch((err) => toast(err.message || 'حصل خطأ', 'bad')));
+  page.addEventListener('click', (e) => handleClick(e).catch((err) => toast(err.message || 'حدث خطأ', 'bad')));
 
   async function handleClick(e) {
     const edit = e.target.closest('[data-edit]');
@@ -1028,8 +1033,8 @@ function render(page) {
       const ok = await confirmDialog(
         'حذف الموقع',
         assigned
-          ? `الموقع "${site.name}" متعين عليه ${assigned} مهندس. الأفضل توقفه بدل ما تحذفه علشان التقارير القديمة. متأكد إنك عايز تحذفه؟`
-          : `متأكد إنك عايز تحذف "${site.name}"؟ سجلات الحضور القديمة هتفضل موجودة.`,
+          ? `الموقع "${site.name}" مخصص له ${assigned} موظف. يُفضَّل إيقافه بدلًا من حذفه حفاظًا على التقارير السابقة. هل تريد حذفه؟`
+          : `هل تريد حذف "${site.name}"؟ ستبقى سجلات الحضور السابقة محفوظة.`,
         { confirmLabel: 'حذف', danger: true }
       );
       if (ok) {
@@ -1077,16 +1082,16 @@ function openSiteModal(site) {
     body: `
       <div class="grid-2">
         <div class="field"><label>اسم الموقع *</label><input class="input" name="siteName" value="${esc(s.name)}" required /></div>
-        <div class="field"><label>العنوان / وصف</label><input class="input" name="address" value="${esc(s.address || '')}" /></div>
+        <div class="field"><label>العنوان / الوصف</label><input class="input" name="address" value="${esc(s.address || '')}" /></div>
       </div>
       <div class="field">
         <label>مكان الموقع *</label>
         <div class="row">
-          <input class="input ltr" name="coords" style="flex:1;min-width:220px" placeholder="الصق إحداثيات أو لينك جوجل ماب: 30.0444, 31.2357"
+          <input class="input ltr" name="coords" style="flex:1;min-width:220px" placeholder="الصق الإحداثيات أو رابط خرائط جوجل: 30.0444, 31.2357"
             value="${s.lat != null ? `${s.lat}, ${s.lng}` : ''}" />
           <button type="button" class="btn" data-here>${icon('pin')} موقعي الحالي</button>
         </div>
-        <span class="hint">أو اضغط على الخريطة. من جوجل ماب: اضغط ضغطة طويلة على المكان وانسخ الأرقام اللي بتظهر.</span>
+        <span class="hint">أو اضغط على الخريطة. من خرائط جوجل: اضغط مطولًا على المكان وانسخ الأرقام الظاهرة.</span>
       </div>
       <div class="map" data-map></div>
       <div class="grid-2">
@@ -1098,7 +1103,7 @@ function openSiteModal(site) {
     onOpen: (form) => {
       const mapEl = form.querySelector('[data-map]');
       if (!window.L) {
-        mapEl.innerHTML = '<div class="empty">تعذر تحميل الخريطة — استخدم الإحداثيات.</div>';
+        mapEl.innerHTML = '<div class="empty">تعذّر تحميل الخريطة — استخدم الإحداثيات.</div>';
         return;
       }
       const start = s.lat != null ? [s.lat, s.lng] : CAIRO;
@@ -1135,7 +1140,7 @@ function openSiteModal(site) {
         if (!navigator.geolocation) return toast('المتصفح لا يدعم تحديد الموقع', 'bad');
         navigator.geolocation.getCurrentPosition(
           (p) => place(p.coords.latitude, p.coords.longitude),
-          () => toast('تعذر تحديد موقعك. اسمح للمتصفح باستخدام الموقع.', 'bad'),
+          () => toast('تعذّر تحديد موقعك. اسمح للمتصفح باستخدام الموقع.', 'bad'),
           { enableHighAccuracy: true, timeout: 15000 }
         );
       });
@@ -1147,7 +1152,7 @@ function openSiteModal(site) {
       const radius = Math.round(Number(form.radius.value));
       if (name.length < 2) throw new Error('اكتب اسم الموقع.');
       if (!coords) throw new Error('حدد مكان الموقع على الخريطة أو الصق الإحداثيات.');
-      if (!(radius >= 30 && radius <= 2000)) throw new Error('النطاق لازم يكون بين 30 و 2000 متر.');
+      if (!(radius >= 30 && radius <= 2000)) throw new Error('يجب أن يكون النطاق بين 30 و2000 متر.');
       const data = {
         name,
         address: form.address.value.trim(),
@@ -1188,7 +1193,7 @@ function render(page) {
       </div>
       <div class="card-b flush table-wrap" id="list"></div>
     </section>
-    <div class="notice">الموظف (مهندس أو إداري) بيدخل التطبيق بـ <b>الكود</b> وكلمة السر. أول موبايل يسجل منه بيتربط بالحساب تلقائيًا، ولو غيّر موبايله اضغط "فك ربط الموبايل".</div>`;
+    <div class="notice">يدخل الموظف (مهندسًا كان أو إداريًا) إلى التطبيق باستخدام <b>الكود</b> وكلمة المرور. يرتبط الحساب تلقائيًا بأول هاتف يُسجَّل منه، وعند تغيير الهاتف اضغط "فك ربط الهاتف".</div>`;
 
   const draw = () => {
     const { engineers, ready } = getState();
@@ -1198,11 +1203,11 @@ function render(page) {
       (e) => !q || String(e.name).toLowerCase().includes(q) || String(e.code).toLowerCase().includes(q) || String(e.phone || '').includes(q)
     );
     if (!list.length) {
-      $('#list', page).innerHTML = `<div class="empty">${engineers.length ? 'مفيش نتائج.' : 'مفيش موظفين لسه — اضغط "موظف جديد".'}</div>`;
+      $('#list', page).innerHTML = `<div class="empty">${engineers.length ? 'لا توجد نتائج.' : 'لا يوجد موظفون بعد — اضغط "موظف جديد".'}</div>`;
       return;
     }
     $('#list', page).innerHTML = `<table class="t"><thead><tr>
-      <th>الموظف</th><th>الموبايل</th><th>المواقع المتعينة</th><th>مأموريات</th><th>الجهاز</th><th>الحالة</th><th></th>
+      <th>الموظف</th><th>الهاتف</th><th>المواقع المخصصة</th><th>مأموريات</th><th>الجهاز</th><th>الحالة</th><th></th>
     </tr></thead><tbody>${list
       .map(
         (e) => `<tr>
@@ -1210,11 +1215,11 @@ function render(page) {
         <td class="num">${esc(e.phone || '—')}</td>
         <td><div class="chips">${(e.siteIds || []).map((id) => badge(siteName(id), 'info')).join('') || '<span class="muted small">لا يوجد</span>'}</div></td>
         <td>${e.missionsAllowed ? badge('مسموح', 'info') : '<span class="muted small">—</span>'}</td>
-        <td>${e.deviceId ? `${badge('مربوط', 'ok')} <button class="btn sm ghost" data-unbind="${esc(e.id)}" title="فك ربط الموبايل">${icon('phone')}</button>` : badge('غير مربوط', '')}</td>
+        <td>${e.deviceId ? `${badge('مربوط', 'ok')} <button class="btn sm ghost" data-unbind="${esc(e.id)}" title="فك ربط الهاتف">${icon('phone')}</button>` : badge('غير مربوط', '')}</td>
         <td>${e.active ? badge('نشط', 'ok') : badge('موقوف', 'bad')}</td>
         <td class="actions">
           <button class="btn sm" data-edit="${esc(e.id)}">${icon('edit')} تعديل</button>
-          <button class="btn sm" data-pass="${esc(e.id)}" title="تغيير كلمة السر">${icon('key')}</button>
+          <button class="btn sm" data-pass="${esc(e.id)}" title="تغيير كلمة المرور">${icon('key')}</button>
           <button class="btn sm ${e.active ? 'danger' : ''}" data-toggle="${esc(e.id)}">${e.active ? 'إيقاف' : 'تفعيل'}</button>
         </td></tr>`
       )
@@ -1227,7 +1232,7 @@ function render(page) {
   });
   $('#add', page).addEventListener('click', () => openEngineerModal());
 
-  page.addEventListener('click', (ev) => handleClick(ev).catch((err) => toast(err.message || 'حصل خطأ', 'bad')));
+  page.addEventListener('click', (ev) => handleClick(ev).catch((err) => toast(err.message || 'حدث خطأ', 'bad')));
 
   async function handleClick(ev) {
     const t = ev.target.closest('button');
@@ -1239,16 +1244,16 @@ function render(page) {
     if (t.dataset.pass) {
       const e = find(t.dataset.pass);
       modal({
-        title: `كلمة سر جديدة — ${e.name}`,
+        title: `كلمة مرور جديدة — ${e.name}`,
         submitLabel: 'تغيير',
-        body: `<div class="field"><label>كلمة السر الجديدة</label>
+        body: `<div class="field"><label>كلمة المرور الجديدة</label>
           <div class="row"><input class="input ltr" name="password" style="flex:1" value="${genPassword()}" />
           <button type="button" class="btn" data-gen>توليد</button></div>
-          <span class="hint">هيتم تسجيل خروجه من التطبيق، وابعتله كلمة السر الجديدة.</span></div>`,
+          <span class="hint">سيُسجَّل خروجه من التطبيق، فأرسل إليه كلمة المرور الجديدة.</span></div>`,
         onOpen: (form) => form.querySelector('[data-gen]').addEventListener('click', () => (form.password.value = genPassword())),
         onSubmit: async (form) => {
           await fn('resetPassword', { uid: e.id, password: form.password.value });
-          toast('تم تغيير كلمة السر', 'ok');
+          toast('تم تغيير كلمة المرور', 'ok');
         },
       });
     }
@@ -1257,8 +1262,8 @@ function render(page) {
       const e = find(t.dataset.toggle);
       const next = !e.active;
       const ok = await confirmDialog(
-        next ? 'تفعيل المهندس' : 'إيقاف المهندس',
-        next ? `تفعيل حساب ${e.name}؟` : `إيقاف حساب ${e.name}؟ مش هيقدر يسجل دخول أو حضور، وسجلاته القديمة هتفضل في التقارير.`,
+        next ? 'تفعيل الموظف' : 'إيقاف الموظف',
+        next ? `تفعيل حساب ${e.name}؟` : `إيقاف حساب ${e.name}؟ لن يتمكن من تسجيل الدخول أو الحضور، وستبقى سجلاته السابقة في التقارير.`,
         { confirmLabel: next ? 'تفعيل' : 'إيقاف', danger: !next }
       );
       if (ok) {
@@ -1271,8 +1276,8 @@ function render(page) {
     if (t.dataset.unbind) {
       const e = find(t.dataset.unbind);
       const ok = await confirmDialog(
-        'فك ربط الموبايل',
-        `هيتم فك ربط موبايل ${e.name}، وأول موبايل يسجل منه بعد كده هيتربط. استخدمها لو المهندس غيّر موبايله بس.`,
+        'فك ربط الهاتف',
+        `سيُفك ربط هاتف ${e.name}، وسيرتبط الحساب بأول هاتف يُسجَّل منه بعد ذلك. استخدم هذا الخيار فقط عند تغيير الموظف لهاتفه.`,
         { confirmLabel: 'فك الربط' }
       );
       if (ok) {
@@ -1297,7 +1302,7 @@ function genPassword() {
 
 function sitesChecklist(selected = []) {
   const { sites } = getState();
-  if (!sites.length) return `<div class="notice warn">أضف المواقع الأول من صفحة المواقع.</div>`;
+  if (!sites.length) return `<div class="notice warn">أضف المواقع أولًا من صفحة المواقع.</div>`;
   return `<div class="checks">${sites
     .map(
       (s) => `<label class="check"><input type="checkbox" name="sites" value="${esc(s.id)}" ${selected.includes(s.id) ? 'checked' : ''} />
@@ -1313,20 +1318,20 @@ function openEngineerModal(eng) {
     title: isEdit ? `تعديل: ${e.name}` : 'موظف جديد',
     submitLabel: isEdit ? 'حفظ' : 'إنشاء الحساب',
     body: `
-      <div class="field"><label>الاسم بالكامل *</label><input class="input" name="fullName" value="${esc(e.name)}" required /></div>
+      <div class="field"><label>الاسم الكامل *</label><input class="input" name="fullName" value="${esc(e.name)}" required /></div>
       <div class="grid-2">
         <div class="field"><label>الكود (للدخول) *</label>
           <input class="input ltr" name="code" value="${esc(e.code)}" ${isEdit ? 'disabled' : ''} placeholder="E012" />
-          ${isEdit ? '<span class="hint">الكود لا يتغير.</span>' : '<span class="hint">حروف إنجليزي وأرقام، زي كود الموظف.</span>'}</div>
-        <div class="field"><label>الموبايل</label><input class="input ltr" name="phone" value="${esc(e.phone || '')}" placeholder="01xxxxxxxxx" /></div>
+          ${isEdit ? '<span class="hint">الكود لا يتغير.</span>' : '<span class="hint">حروف إنجليزية وأرقام، مثل كود الموظف.</span>'}</div>
+        <div class="field"><label>الهاتف</label><input class="input ltr" name="phone" value="${esc(e.phone || '')}" placeholder="01xxxxxxxxx" /></div>
       </div>
-      ${isEdit ? '' : `<div class="field"><label>كلمة السر *</label>
+      ${isEdit ? '' : `<div class="field"><label>كلمة المرور *</label>
         <div class="row"><input class="input ltr" name="password" style="flex:1" value="${genPassword()}" />
         <button type="button" class="btn" data-gen>توليد</button></div>
-        <span class="hint">انسخها وابعتها للموظف مع الكود.</span></div>`}
-      <div class="field"><label>المواقع المسموح له يسجل فيها</label>${sitesChecklist(e.siteIds || [])}</div>
+        <span class="hint">انسخها وأرسلها إلى الموظف مع الكود.</span></div>`}
+      <div class="field"><label>المواقع المسموح له بالتسجيل فيها</label>${sitesChecklist(e.siteIds || [])}</div>
       <label class="check"><input type="checkbox" name="missions" ${e.missionsAllowed ? 'checked' : ''} />
-        مسموح يطلب مأموريات (للإداريين اللي بيطلعوا مشاوير شغل)</label>`,
+        مسموح له بطلب مأموريات (للإداريين الذين يخرجون في مهام عمل)</label>`,
     onOpen: (form) => {
       const gen = form.querySelector('[data-gen]');
       if (gen) gen.addEventListener('click', () => (form.password.value = genPassword()));
@@ -1336,7 +1341,7 @@ function openEngineerModal(eng) {
       const phone = form.phone.value.trim();
       const siteIds = [...form.querySelectorAll('input[name=sites]:checked')].map((i) => i.value);
       const missionsAllowed = form.missions.checked;
-      if (name.length < 3) throw new Error('اكتب الاسم بالكامل.');
+      if (name.length < 3) throw new Error('اكتب الاسم الكامل.');
       if (isEdit) {
         await updateEngineer(e.id, { name, phone, siteIds, missionsAllowed });
         refresh('engineers');
@@ -1351,21 +1356,21 @@ function openEngineerModal(eng) {
       // Show credentials once so the admin can send them.
       modal({
         title: 'تم إنشاء الحساب ✅',
-        body: `<p>ابعت البيانات دي للموظف:</p>
+        body: `<p>أرسل هذه البيانات إلى الموظف:</p>
           <div class="card card-b" style="background:var(--surface-2)">
             <div>الاسم: <b>${esc(name)}</b></div>
             <div>الكود: <b class="ltr">${esc(code)}</b></div>
-            <div>كلمة السر: <b class="ltr">${esc(password)}</b></div>
+            <div>كلمة المرور: <b class="ltr">${esc(password)}</b></div>
           </div>
           <div class="row" style="margin-top:12px"><button type="button" class="btn" data-copy>نسخ الرسالة</button></div>`,
         onOpen: (f) =>
           f.querySelector('[data-copy]').addEventListener('click', async () => {
-            const txt = `أهلاً ${name}\nبيانات دخول تطبيق الحضور:\nالكود: ${code}\nكلمة السر: ${password}`;
+            const txt = `مرحبًا ${name}\nبيانات الدخول إلى تطبيق الحضور:\nالكود: ${code}\nكلمة المرور: ${password}`;
             try {
               await navigator.clipboard.writeText(txt);
               toast('تم النسخ', 'ok');
             } catch {
-              toast('تعذر النسخ', 'bad');
+              toast('تعذّر النسخ', 'bad');
             }
           }),
       });
@@ -1389,31 +1394,31 @@ function render(page) {
   const from = addDaysKey(todayKey(), -30);
 
   page.innerHTML = `
-    <div class="notice">الموظف بيطلب المأمورية من التطبيق ← توافق أو ترفض من هنا ← بعد الموافقة يقدر يبدأها وينهيها من أي مكان بسيلفي وموقعه. كل خطوة بتوصلك على تليجرام.
-      المأموريات مفعّلة بس للموظفين اللي معلّم عليهم "مسموح بمأموريات" في صفحة الموظفين.</div>
+    <div class="notice">يطلب الموظف المأمورية من التطبيق ← توافق عليها أو ترفضها من هنا ← بعد الموافقة يبدؤها وينهيها من أي مكان بصورة شخصية وموقعه. يصلك إشعار على تليجرام مع كل خطوة.
+      المأموريات متاحة فقط للموظفين المسموح لهم بذلك من صفحة الموظفين.</div>
     <section class="card">
-      <div class="card-h"><h3>${icon('car')} طلبات مستنية موافقتك</h3><span id="pendingCount"></span></div>
+      <div class="card-h"><h3>${icon('car')} طلبات بانتظار موافقتك</h3><span id="pendingCount"></span></div>
       <div class="card-b" id="pending"><div class="empty"><span class="spinner"></span></div></div>
     </section>
     <section class="card">
-      <div class="card-h"><h3>مأموريات شغالة / متوافق عليها</h3></div>
+      <div class="card-h"><h3>مأموريات جارية / موافَق عليها</h3></div>
       <div class="card-b flush table-wrap" id="running"></div>
     </section>
     <section class="card">
-      <div class="card-h"><h3>سجل المأموريات (آخر 30 يوم)</h3><span class="muted small" id="total"></span></div>
+      <div class="card-h"><h3>سجل المأموريات (آخر 30 يومًا)</h3><span class="muted small" id="total"></span></div>
       <div class="card-b flush table-wrap" id="history"></div>
     </section>`;
 
   const status = (m) => {
     const [label, kind] = MISSION_STATUS[m.status] || [m.status, ''];
-    return badge(label, kind) + (m.flags.includes('no_end') ? ' ' + badge('ماسجلش انتهاء', 'bad') : '');
+    return badge(label, kind) + (m.flags.includes('no_end') ? ' ' + badge('لم يُسجّل الانتهاء', 'bad') : '');
   };
   const person = (m) => `<td class="person"><b>${esc(m.name)}</b><span class="ltr">${esc(m.code || '')}</span></td>`;
-  const where = (p) => (p ? mapsLink(p.lat, p.lng, 'المكان ↗') : '');
+  const where = (p) => (p ? mapsLink(p.lat, p.lng, 'الموقع ↗') : '');
 
   const table = (list, empty) =>
     list.length
-      ? `<table class="t"><thead><tr><th>التاريخ</th><th>الموظف</th><th>رايح فين / ليه</th><th>الحالة</th><th>البداية</th><th>النهاية</th><th>المدة</th><th></th></tr></thead><tbody>${list
+      ? `<table class="t"><thead><tr><th>التاريخ</th><th>الموظف</th><th>الجهة / الغرض</th><th>الحالة</th><th>البداية</th><th>النهاية</th><th>المدة</th><th></th></tr></thead><tbody>${list
           .map(
             (m) => `<tr>
           <td class="num">${esc(m.date)}</td>
@@ -1423,7 +1428,7 @@ function render(page) {
           <td>${status(m)}</td>
           <td class="num">${m.startedAt ? `${fmtTime(m.startedAt)} ${where(m.start)}` : '—'}</td>
           <td class="num">${m.endedAt ? `${fmtTime(m.endedAt)} ${where(m.end)}` : '—'}</td>
-          <td class="num">${m.status === 'done' ? fmtDuration(m.durationMinutes) : m.status === 'active' ? 'لسه شغالة' : '—'}</td>
+          <td class="num">${m.status === 'done' ? fmtDuration(m.durationMinutes) : m.status === 'active' ? 'جارية' : '—'}</td>
           <td class="actions">${m.start || m.end ? `<button class="btn sm" data-photos="${esc(m.id)}" title="الصور">${icon('camera')}</button>` : ''}</td>
         </tr>`
           )
@@ -1441,7 +1446,7 @@ function render(page) {
           .map(
             (m) => `<div class="mission-card">
           <div class="who"><b>${esc(m.name)} <span class="ltr muted small">${esc(m.code || '')}</span></b>
-            <span class="muted small">طلبها ${fmtDateTime(m.requestedAt)}</span></div>
+            <span class="muted small">طُلبت ${fmtDateTime(m.requestedAt)}</span></div>
           <div>📍 <b>${esc(m.destination)}</b></div>
           ${m.purpose ? `<div class="muted">📝 ${esc(m.purpose)}</div>` : ''}
           <div class="row">
@@ -1450,9 +1455,9 @@ function render(page) {
           </div></div>`
           )
           .join('')}</div>`
-      : `<div class="empty">مفيش طلبات جديدة 👍</div>`;
-    $('#running', page).innerHTML = table(running, 'مفيش مأموريات شغالة دلوقتي.');
-    $('#history', page).innerHTML = table(history, 'مفيش مأموريات في آخر 30 يوم.');
+      : `<div class="empty">لا توجد طلبات جديدة 👍</div>`;
+    $('#running', page).innerHTML = table(running, 'لا توجد مأموريات جارية حاليًا.');
+    $('#history', page).innerHTML = table(history, 'لا توجد مأموريات خلال آخر 30 يومًا.');
     const total = history.filter((m) => m.status === 'done').reduce((s, m) => s + (m.durationMinutes || 0), 0);
     $('#total', page).textContent = total ? `إجمالي وقت المأموريات: ${fmtDuration(total)}` : '';
   };
@@ -1464,7 +1469,7 @@ function render(page) {
       danger: !approve,
       body: `<p style="margin-top:0">📍 <b>${esc(m.destination)}</b>${m.purpose ? `<br><span class="muted">${esc(m.purpose)}</span>` : ''}</p>
         <div class="field"><label>ملاحظة للموظف (اختياري)</label>
-          <input class="input" name="note" maxlength="300" placeholder="${approve ? 'مثلاً: ارجع المكتب بعدها' : 'سبب الرفض'}" /></div>`,
+          <input class="input" name="note" maxlength="300" placeholder="${approve ? 'مثال: العودة إلى المكتب بعدها' : 'سبب الرفض'}" /></div>`,
       onSubmit: async (form) => {
         await fn('missionDecide', { id: m.id, approve, note: form.note.value.trim() });
         toast(approve ? 'تمت الموافقة' : 'تم الرفض', 'ok');
@@ -1487,7 +1492,7 @@ function render(page) {
       loaded = true;
       draw();
     } catch (err) {
-      const msg = /missions/.test(err.message) ? 'جدول المأموريات لسه متعملش في قاعدة البيانات.' : err.message;
+      const msg = /missions/.test(err.message) ? 'جدول المأموريات غير موجود في قاعدة البيانات بعد.' : err.message;
       ['#pending', '#running', '#history'].forEach((s) => ($(s, page).innerHTML = `<div class="empty">${esc(msg)}</div>`));
     }
   };
@@ -1505,8 +1510,8 @@ async function showMissionPhotos(m) {
   const box = modal({
     title: `مأمورية ${m.name} — ${m.destination}`,
     body: `<div class="selfies">
-      <figure><img data-a alt="سيلفي البداية" /><figcaption>${m.startedAt ? `البداية ${fmtTime(m.startedAt)}` : 'لسه ماابتدتش'}</figcaption></figure>
-      <figure><img data-b alt="سيلفي النهاية" /><figcaption>${m.endedAt ? `النهاية ${fmtTime(m.endedAt)}` : 'لسه ماخلصتش'}</figcaption></figure>
+      <figure><img data-a alt="سيلفي البداية" /><figcaption>${m.startedAt ? `البداية ${fmtTime(m.startedAt)}` : 'لم تبدأ بعد'}</figcaption></figure>
+      <figure><img data-b alt="سيلفي النهاية" /><figcaption>${m.endedAt ? `النهاية ${fmtTime(m.endedAt)}` : 'لم تنتهِ بعد'}</figcaption></figure>
     </div>`,
   });
   const [a, b] = await Promise.all([selfieUrl(m.start?.selfiePath), selfieUrl(m.end?.selfiePath)]);
@@ -1538,7 +1543,7 @@ function render(page) {
       <div class="filters">
         <div class="field"><label>من</label><input class="input ltr" type="date" id="from" value="${monthStart}" max="${today}" /></div>
         <div class="field"><label>إلى</label><input class="input ltr" type="date" id="to" value="${today}" max="${today}" /></div>
-        <div class="field"><label>المهندس</label><select class="input" id="eng"></select></div>
+        <div class="field"><label>الموظف</label><select class="input" id="eng"></select></div>
         <div class="field"><label>الموقع</label><select class="input" id="site"></select></div>
         <div class="row" style="padding-bottom:2px">
           <button class="btn primary" id="run">${icon('search')} عرض التقرير</button>
@@ -1548,15 +1553,15 @@ function render(page) {
       <div class="row small muted" style="margin-top:10px">
         اختصارات:
         <a href="#" data-range="month">الشهر الحالي</a> ·
-        <a href="#" data-range="prev">الشهر اللي فات</a> ·
+        <a href="#" data-range="prev">الشهر الماضي</a> ·
         <a href="#" data-range="week">آخر 7 أيام</a>
       </div>
     </div></section>
-    <section class="card"><div class="card-h"><h3>الملخص لكل مهندس</h3><span class="muted small" id="meta"></span></div>
-      <div class="card-b flush table-wrap" id="summary"><div class="empty">اختار الفترة واضغط "عرض التقرير".</div></div></section>
+    <section class="card"><div class="card-h"><h3>الملخص لكل موظف</h3><span class="muted small" id="meta"></span></div>
+      <div class="card-b flush table-wrap" id="summary"><div class="empty">اختر الفترة ثم اضغط "عرض التقرير".</div></div></section>
     <section class="card"><div class="card-h"><h3>التفاصيل</h3></div>
       <div class="card-b flush table-wrap" id="detail"></div></section>
-    <div class="notice small">الأوفر تايم = ساعات التواجد الزيادة عن اليوم الرسمي (من بداية لنهاية الدوام في الإعدادات)، وكل ساعات أيام الإجازة. الغياب = أيام عمل رسمية بدون أي تسجيل (من تاريخ إنشاء حساب المهندس).</div>`;
+    <div class="notice small">الوقت الإضافي = ساعات التواجد الزائدة على يوم العمل الرسمي (حسب مواعيد الدوام في الإعدادات)، إضافة إلى جميع ساعات أيام الإجازة. الغياب = أيام العمل الرسمية دون أي تسجيل (منذ تاريخ إنشاء حساب الموظف).</div>`;
 
   const fillFilters = () => {
     const { engineers, sites } = getState();
@@ -1564,8 +1569,8 @@ function render(page) {
     const sSel = $('#site', page);
     const ev = eSel.value;
     const sv = sSel.value;
-    eSel.innerHTML = `<option value="">كل المهندسين</option>${engineers.map((e) => `<option value="${esc(e.id)}">${esc(e.name)}</option>`).join('')}`;
-    sSel.innerHTML = `<option value="">كل المواقع</option>${sites.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}`;
+    eSel.innerHTML = `<option value="">جميع الموظفين</option>${engineers.map((e) => `<option value="${esc(e.id)}">${esc(e.name)}</option>`).join('')}`;
+    sSel.innerHTML = `<option value="">جميع المواقع</option>${sites.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}`;
     eSel.value = ev;
     sSel.value = sv;
   };
@@ -1591,7 +1596,7 @@ function render(page) {
   const run = async () => {
     const from = $('#from', page).value;
     const to = $('#to', page).value;
-    if (!from || !to || from > to) return toast('راجع الفترة', 'bad');
+    if (!from || !to || from > to) return toast('راجع الفترة المحددة', 'bad');
     await withBusy($('#run', page), async () => {
       rows = await attendanceRange(from, to);
       const eng = $('#eng', page).value;
@@ -1609,8 +1614,8 @@ function render(page) {
     $('#meta', page).textContent = `${from} ← ${to} · ${workdayCount} يوم عمل رسمي · ${rows.length} تسجيل`;
     $('#summary', page).innerHTML = summary.length
       ? `<table class="t"><thead><tr>
-          <th>المهندس</th><th>أيام حضور</th><th>غياب</th><th>أيام تأخير</th><th>إجمالي التأخير</th>
-          <th>ساعات التواجد</th><th>أوفر تايم</th><th>أيام إجازة اشتغلها</th><th>بدون انصراف</th>
+          <th>الموظف</th><th>أيام حضور</th><th>غياب</th><th>أيام تأخير</th><th>إجمالي التأخير</th>
+          <th>ساعات التواجد</th><th>وقت إضافي</th><th>أيام إجازة عمل فيها</th><th>بدون انصراف</th>
         </tr></thead><tbody>${summary
           .map(
             (s) => `<tr>
@@ -1625,11 +1630,11 @@ function render(page) {
             <td class="num">${s.noCheckout ? badge(s.noCheckout, 'bad') : 0}</td></tr>`
           )
           .join('')}</tbody></table>`
-      : `<div class="empty">مفيش بيانات في الفترة دي.</div>`;
+      : `<div class="empty">لا توجد بيانات في هذه الفترة.</div>`;
 
     $('#detail', page).innerHTML = rows.length
       ? `<table class="t"><thead><tr>
-          <th>التاريخ</th><th>المهندس</th><th>الموقع</th><th>حضور</th><th>انصراف</th><th>المدة</th><th>ملاحظات</th><th></th>
+          <th>التاريخ</th><th>الموظف</th><th>الموقع</th><th>حضور</th><th>انصراف</th><th>المدة</th><th>ملاحظات</th><th></th>
         </tr></thead><tbody>${rows
           .map(
             (r) => `<tr>
@@ -1664,8 +1669,8 @@ function render(page) {
       'أيام التأخير': s.lateDays,
       'إجمالي التأخير (دقيقة)': s.lateMinutes,
       'ساعات التواجد': Number(fmtHours(s.totalMinutes)),
-      'ساعات أوفر تايم': Number(fmtHours(s.overtimeMinutes)),
-      'أيام إجازة اشتغلها': s.offDaysWorked,
+      'ساعات الوقت الإضافي': Number(fmtHours(s.overtimeMinutes)),
+      'أيام إجازة عمل فيها': s.offDaysWorked,
       'تسجيلات بدون انصراف': s.noCheckout,
     }));
     const det = rows.map((r) => ({
@@ -1691,7 +1696,7 @@ function render(page) {
     ws2['!cols'] = Object.keys(det[0] || { a: 1 }).map((k) => ({ wch: Math.max(12, k.length + 4) }));
     XLSX.utils.book_append_sheet(wb, ws1, 'ملخص');
     XLSX.utils.book_append_sheet(wb, ws2, 'تفصيلي');
-    XLSX.writeFile(wb, `حضور_المواقع_${from}_${to}.xlsx`);
+    XLSX.writeFile(wb, `الحضور_${from}_${to}.xlsx`);
   };
 
   const unsub = subscribe(fillFilters);
@@ -1789,10 +1794,10 @@ function render(page) {
   let onlySerious = false;
 
   page.innerHTML = `
-    <div class="notice">هنا كل محاولة تسجيل اترفضت. محاولات <b>تزييف الموقع</b> و<b>الموبايل غير المسجل</b> بيوصلك عليها إشعار تليجرام فورًا.</div>
+    <div class="notice">هنا جميع محاولات التسجيل المرفوضة. يصلك إشعار فوري على تليجرام بمحاولات <b>تزييف الموقع</b> و<b>الهاتف غير المسجل</b>.</div>
     <section class="card">
       <div class="card-h"><h3>المحاولات المرفوضة (آخر 300)</h3>
-        <label class="switch small"><input type="checkbox" id="serious" /> المحاولات الخطيرة بس</label></div>
+        <label class="switch small"><input type="checkbox" id="serious" /> المحاولات الخطيرة فقط</label></div>
       <div class="card-b flush table-wrap" id="list"><div class="empty"><span class="spinner"></span></div></div>
     </section>`;
 
@@ -1808,10 +1813,10 @@ function render(page) {
               <td>${esc(TYPE_LABELS[r.type] || r.type || '')}</td>
               <td>${badge(label, kind)}</td>
               <td class="small">${esc(r.message || '')} ${r.accuracy != null ? `<span class="muted">· دقة ±${Math.round(r.accuracy)} م</span>` : ''}
-                ${mapsLink(r.lat, r.lng, 'المكان ↗')}</td></tr>`;
+                ${mapsLink(r.lat, r.lng, 'الموقع ↗')}</td></tr>`;
           })
           .join('')}</tbody></table>`
-      : `<div class="empty">مفيش محاولات مرفوضة 👍</div>`;
+      : `<div class="empty">لا توجد محاولات مرفوضة 👍</div>`;
   };
 
   $('#serious', page).addEventListener('change', (e) => {
@@ -1853,9 +1858,9 @@ function render(page) {
       <div class="card-b" id="tg"></div>
     </section>
     <section class="card">
-      <div class="card-h"><h3>المديرين</h3></div>
+      <div class="card-h"><h3>المديرون</h3></div>
       <form class="card-b" id="admins" novalidate>
-        <p class="muted" style="margin-top:0">لإضافة مدير: أنشئ له حساب من Supabase → Authentication → Add user (وعلّم Auto Confirm)، وبعدين اكتب الإيميل هنا.</p>
+        <p class="muted" style="margin-top:0">لإضافة مدير: أنشئ له حسابًا أولًا، ثم اكتب بريده الإلكتروني هنا.</p>
         <div class="row"><input class="input ltr" name="email" type="email" placeholder="name@company.com" style="flex:1;min-width:220px" />
         <button class="btn" type="submit">إضافة مدير</button></div>
       </form>
@@ -1876,15 +1881,15 @@ function render(page) {
         (d) => `<label class="check"><input type="checkbox" name="workDays" value="${d.i}" ${(s.workDays || []).includes(d.i) ? 'checked' : ''}/> ${d.label}</label>`
       ).join('')}</div></div>
       <div class="grid-3">
-        <div class="field"><label>أقصى خطأ مسموح في الـ GPS (متر)</label><input class="input ltr" type="number" min="10" max="200" name="maxAccuracy" value="${esc(s.maxAccuracy)}" />
-          <span class="hint">50 مناسب. لو المهندسين بيشتكوا في مواقع مقفولة زوّده لـ 75.</span></div>
+        <div class="field"><label>أقصى خطأ مسموح في تحديد الموقع (متر)</label><input class="input ltr" type="number" min="10" max="200" name="maxAccuracy" value="${esc(s.maxAccuracy)}" />
+          <span class="hint">القيمة المناسبة 50. إذا واجه الموظفون صعوبة في الأماكن المغلقة فزِدها إلى 75.</span></div>
         <div class="field"><label>تنبيه "لم يسجلوا حضور" الساعة</label><input class="input ltr" type="time" name="missedAlertTime" value="${esc(s.missedAlertTime)}" /></div>
         <div class="field"><label>ملخص اليوم الساعة</label><input class="input ltr" type="time" name="dailySummaryTime" value="${esc(s.dailySummaryTime)}" /></div>
       </div>
       <div class="field"><label class="switch"><input type="checkbox" name="selfieRequired" ${s.selfieRequired ? 'checked' : ''}/> السيلفي إجباري مع كل تسجيل (موصى به)</label></div>
       <div class="field"><label>الاحتفاظ بصور السيلفي (يوم)</label><input class="input ltr" type="number" min="7" max="3650" name="selfieRetentionDays" value="${esc(s.selfieRetentionDays)}" style="max-width:200px" />
-        <span class="hint">الصور الأقدم بتتمسح تلقائيًا علشان المساحة المجانية (1 جيجا) متخلصش. 90 يوم مناسب.</span></div>
-      <div class="field"><label class="switch"><input type="checkbox" name="allowCheckoutOutside" ${s.allowCheckoutOutside ? 'checked' : ''}/> السماح بالانصراف من خارج الموقع (بيتعلّم عليه في التقارير ويوصلك إشعار)</label></div>
+        <span class="hint">تُحذف الصور الأقدم تلقائيًا للحفاظ على مساحة التخزين. القيمة المناسبة 90 يومًا.</span></div>
+      <div class="field"><label class="switch"><input type="checkbox" name="allowCheckoutOutside" ${s.allowCheckoutOutside ? 'checked' : ''}/> السماح بالانصراف من خارج الموقع (يُميَّز في التقارير ويصلك إشعار)</label></div>
       <div class="form-error" data-error></div>
       <button class="btn primary" type="submit">حفظ الإعدادات</button>`;
   };
@@ -1909,8 +1914,8 @@ function render(page) {
       selfieRetentionDays: Number(f.selfieRetentionDays.value) || 90,
     };
     if (parseHHMM(data.workStart) == null || parseHHMM(data.workEnd) == null) return (err.textContent = 'راجع مواعيد الدوام.');
-    if (parseHHMM(data.workEnd) <= parseHHMM(data.workStart)) return (err.textContent = 'نهاية الدوام لازم تكون بعد البداية.');
-    if (!data.workDays.length) return (err.textContent = 'اختار يوم عمل واحد على الأقل.');
+    if (parseHHMM(data.workEnd) <= parseHHMM(data.workStart)) return (err.textContent = 'يجب أن تكون نهاية الدوام بعد بدايته.');
+    if (!data.workDays.length) return (err.textContent = 'اختر يوم عمل واحدًا على الأقل.');
     try {
       await withBusy(f.querySelector('button[type=submit]'), () => saveSettings(data));
       f.dataset.dirty = '0';
@@ -1925,16 +1930,16 @@ function render(page) {
   const tg = $('#tg', page);
   tg.innerHTML = `
     <ol class="small" style="margin-top:0;padding-inline-start:18px;line-height:2">
-      <li>افتح تليجرام وابعت <b>/start</b> للبوت بتاعك (أو ضيفه في جروب الإدارة وابعت أي رسالة في الجروب).</li>
-      <li>اضغط "اكتشاف المحادثات" واختار المحادثة.</li>
-      <li>احفظ، وجرّب برسالة تجربة.</li>
+      <li>افتح تليجرام وأرسل <b>/start</b> إلى البوت (أو أضفه إلى مجموعة الإدارة وأرسل أي رسالة فيها).</li>
+      <li>اضغط "اكتشاف المحادثات" واختر المحادثة.</li>
+      <li>احفظ، ثم جرّب إرسال رسالة تجريبية.</li>
     </ol>
-    <div class="field"><label>Chat IDs (ممكن أكتر من واحد، افصل بفاصلة)</label>
+    <div class="field"><label>معرّفات المحادثات (يمكن إدخال أكثر من معرّف مفصولة بفاصلة)</label>
       <input class="input ltr" id="chatIds" placeholder="123456789, -1001234567890" /></div>
     <div class="row">
       <button class="btn primary" id="saveTg">حفظ</button>
       <button class="btn" id="discover">اكتشاف المحادثات</button>
-      <button class="btn" id="test">${icon('send')} رسالة تجربة</button>
+      <button class="btn" id="test">${icon('send')} رسالة تجريبية</button>
     </div>
     <div id="chats" style="margin-top:14px"></div>`;
 
@@ -1956,8 +1961,8 @@ function render(page) {
       await keepChatIds();
       const { results } = await fn('telegramTest');
       const failed = results.filter((r) => !r.ok);
-      if (failed.length) toast(`فشل الإرسال لـ ${failed.map((f) => f.chatId).join(', ')}: ${failed[0].error}`, 'bad');
-      else toast('تم إرسال رسالة التجربة ✅', 'ok');
+      if (failed.length) toast(`فشل الإرسال إلى ${failed.map((f) => f.chatId).join(', ')}: ${failed[0].error}`, 'bad');
+      else toast('تم إرسال الرسالة التجريبية ✅', 'ok');
     }).catch((err) => toast(err.message, 'bad'))
   );
   $('#discover', page).addEventListener('click', (e) =>
@@ -1965,7 +1970,7 @@ function render(page) {
       const { chats } = await fn('telegramDiscover');
       const box = $('#chats', page);
       if (!chats.length) {
-        box.innerHTML = `<div class="notice warn">مفيش محادثات. ابعت /start للبوت الأول وحاول تاني.</div>`;
+        box.innerHTML = `<div class="notice warn">لا توجد محادثات. أرسل /start إلى البوت أولًا ثم حاول مرة أخرى.</div>`;
         return;
       }
       box.innerHTML = `<div class="checks">${chats
@@ -1983,7 +1988,7 @@ function render(page) {
     const ids = new Set(input.value.split(/[,\s]+/).filter(Boolean));
     ids.add(b.dataset.add);
     input.value = [...ids].join(', ');
-    toast('اتضافت — اضغط حفظ', 'ok');
+    toast('تمت الإضافة — اضغط حفظ', 'ok');
   });
 
   // ---- Admins ----
@@ -1995,7 +2000,7 @@ function render(page) {
     try {
       await withBusy(f.querySelector('button'), () => fn('addAdmin', { email }));
       f.email.value = '';
-      toast('تمت إضافة المدير. يسجل خروج ودخول علشان الصلاحية تشتغل.', 'ok');
+      toast('تمت إضافة المدير. عليه تسجيل الخروج ثم الدخول لتفعيل الصلاحية.', 'ok');
     } catch (err) {
       toast(err.message, 'bad');
     }
@@ -2046,7 +2051,7 @@ let cleanup = null;
 let currentUser = null;
 let bootedFor = null;
 
-const brandMark = `<div class="brand-mark"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 2.5a7 7 0 0 0-7 7c0 5.3 7 12 7 12s7-6.7 7-12a7 7 0 0 0-7-7zm0 9.6a2.6 2.6 0 1 1 0-5.2 2.6 2.6 0 0 1 0 5.2z"/></svg></div>`;
+const brandMark = `<div class="brand-mark"><img src="logo.png" alt="NEAP" onerror="this.remove()" /><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 2.5a7 7 0 0 0-7 7c0 5.3 7 12 7 12s7-6.7 7-12a7 7 0 0 0-7-7zm0 9.6a2.6 2.6 0 1 1 0-5.2 2.6 2.6 0 0 1 0 5.2z"/></svg></div>`;
 
 /* ---------------- screens ---------------- */
 
@@ -2055,8 +2060,8 @@ function renderNotConfigured() {
   root.innerHTML = `
     <div class="auth-wrap"><div class="auth-card">
       ${brandMark}
-      <h1>لوحة التحكم غير مربوطة بعد</h1>
-      <p>افتح الملف <code class="k">admin/js/config.js</code> وحط فيه Project URL والـ anon key بتوع مشروع Supabase.</p>
+      <h1>لوحة التحكم غير مرتبطة بعد</h1>
+      <p>افتح الملف <code class="k">admin/js/config.js</code> وأضف إليه بيانات الاتصال بقاعدة البيانات.</p>
       <div class="notice">الخطوات بالتفصيل في <b>docs/SETUP_AR.md</b>.</div>
     </div></div>`;
 }
@@ -2066,16 +2071,16 @@ function renderLogin() {
   root.innerHTML = `
     <div class="auth-wrap">
       <form class="auth-card" id="login" novalidate>
-        ${brandMark}
-        <h1>نظام حضور المواقع</h1>
+        <img class="auth-logo" src="logo-full.png" alt="NEAP" />
+        <h1>نظام الحضور والانصراف</h1>
         <p>تسجيل دخول الإدارة</p>
         <div class="field"><label for="email">البريد الإلكتروني</label>
           <input class="input ltr" id="email" type="email" autocomplete="username" required /></div>
-        <div class="field"><label for="password">كلمة السر</label>
+        <div class="field"><label for="password">كلمة المرور</label>
           <input class="input ltr" id="password" type="password" autocomplete="current-password" required /></div>
         <div class="form-error" id="err"></div>
         <button class="btn primary block" type="submit">دخول</button>
-        <div style="margin-top:14px;text-align:center"><a href="#" id="forgot" class="small">نسيت كلمة السر؟</a></div>
+        <div style="margin-top:14px;text-align:center"><a href="#" id="forgot" class="small">نسيت كلمة المرور؟</a></div>
       </form>
     </div>`;
   const form = $('#login');
@@ -2095,10 +2100,10 @@ function renderLogin() {
   $('#forgot').addEventListener('click', async (e) => {
     e.preventDefault();
     const email = $('#email').value.trim();
-    if (!email) return ($('#err').textContent = 'اكتب الإيميل الأول.');
+    if (!email) return ($('#err').textContent = 'أدخل البريد الإلكتروني أولًا.');
     try {
       await resetPasswordEmail(email);
-      toast('لو الإيميل مسجل، هيوصلك رابط لتغيير كلمة السر', 'ok');
+      toast('إذا كان البريد مسجلًا فسيصلك رابط لتغيير كلمة المرور', 'ok');
     } catch (err) {
       $('#err').textContent = err.message;
     }
@@ -2110,9 +2115,9 @@ function renderNotAdmin(user) {
   root.innerHTML = `
     <div class="auth-wrap"><div class="auth-card">
       ${brandMark}
-      <h1>الحساب ده مش مدير</h1>
+      <h1>هذا الحساب ليس حساب مدير</h1>
       <p class="ltr" style="text-align:right">${esc(user.email || '')}</p>
-      <div class="notice" style="margin-bottom:16px">لو دي أول مرة تشغّل النظام، اضغط الزر تحت علشان تتفعّل كأول مدير. الزر بيشتغل مرة واحدة بس، وبعدها أي مدير جديد يتضاف من الإعدادات.</div>
+      <div class="notice" style="margin-bottom:16px">إذا كانت هذه أول مرة يُشغَّل فيها النظام، فاضغط الزر أدناه لتفعيل حسابك كأول مدير. يعمل هذا الزر مرة واحدة فقط، وبعدها يُضاف أي مدير جديد من صفحة الإعدادات.</div>
       <div class="form-error" id="err"></div>
       <button class="btn primary block" id="boot">تفعيل كأول مدير</button>
       <button class="btn block" id="out" style="margin-top:10px">تسجيل خروج</button>
@@ -2121,7 +2126,7 @@ function renderNotAdmin(user) {
     e.target.disabled = true;
     try {
       await fn('bootstrap');
-      toast('تم تفعيلك كمدير', 'ok');
+      toast('تم تفعيل حسابك كمدير', 'ok');
       bootedFor = null;
       await boot(user);
     } catch (err) {
@@ -2137,13 +2142,13 @@ function renderShell(user) {
   root.innerHTML = `
     <div class="shell">
       <aside class="sidebar">
-        <div class="brand">${brandMark}<div><b>حضور المواقع</b><span id="companyName"></span></div></div>
+        <div class="brand">${brandMark}<div><b>نظام الحضور والانصراف</b><span id="companyName"></span></div></div>
         <nav class="nav">
           ${Object.entries(ROUTES)
             .map(([k, r]) => `<a href="#/${k}" data-route="${k}">${icon(r.icon)}<span>${r.title}</span>${k === 'missions' ? '<b class="count" id="missionsCount"></b>' : ''}</a>`)
             .join('')}
         </nav>
-        <div class="foot">كل الأوقات بتوقيت القاهرة</div>
+        <div class="foot">جميع الأوقات بتوقيت القاهرة</div>
       </aside>
       <div class="main">
         <header class="topbar">
@@ -2172,7 +2177,7 @@ function route() {
   const r = ROUTES[key] || ROUTES.today;
   document.querySelectorAll('.nav a').forEach((a) => a.classList.toggle('active', a.dataset.route === key));
   $('#pageTitle').textContent = r.title;
-  document.title = `${r.title} — حضور المواقع`;
+  document.title = `${r.title} — نظام الحضور`;
   if (typeof cleanup === 'function') cleanup();
   cleanup = null;
   // Fresh element per route so page-level event listeners never accumulate.
@@ -2183,17 +2188,17 @@ function route() {
     cleanup = r.page.render(page);
   } catch (err) {
     console.error(err);
-    page.innerHTML = `<div class="card card-b">حصل خطأ أثناء تحميل الصفحة: ${esc(err.message)}</div>`;
+    page.innerHTML = `<div class="card card-b">حدث خطأ أثناء تحميل الصفحة: ${esc(err.message)}</div>`;
   }
 }
 
 function authError(err) {
   const msg = String(err?.message || '').toLowerCase();
-  if (msg.includes('invalid login') || msg.includes('invalid credentials')) return 'الإيميل أو كلمة السر غلط.';
-  if (msg.includes('email not confirmed')) return 'الإيميل لسه متأكدش. فعّله من Supabase → Authentication.';
-  if (msg.includes('rate') || msg.includes('too many')) return 'محاولات كتير. استنى شوية وحاول تاني.';
+  if (msg.includes('invalid login') || msg.includes('invalid credentials')) return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
+  if (msg.includes('email not confirmed')) return 'البريد الإلكتروني غير مؤكد بعد.';
+  if (msg.includes('rate') || msg.includes('too many')) return 'محاولات كثيرة. انتظر قليلًا ثم حاول مرة أخرى.';
   if (msg.includes('fetch') || msg.includes('network')) return 'مشكلة في الاتصال بالإنترنت.';
-  return 'تعذر تسجيل الدخول.';
+  return 'تعذّر تسجيل الدخول.';
 }
 
 async function boot(user) {
@@ -2224,14 +2229,14 @@ function watchPendingMissions() {
 
 function askNewPassword() {
   modal({
-    title: 'كلمة سر جديدة',
+    title: 'كلمة مرور جديدة',
     submitLabel: 'حفظ',
-    body: `<div class="field"><label>كلمة السر الجديدة (8 حروف على الأقل)</label>
+    body: `<div class="field"><label>كلمة المرور الجديدة (8 أحرف على الأقل)</label>
       <input class="input ltr" name="pw" type="password" autocomplete="new-password" /></div>`,
     onSubmit: async (form) => {
-      if (form.pw.value.length < 8) throw new Error('كلمة السر قصيرة.');
+      if (form.pw.value.length < 8) throw new Error('كلمة المرور قصيرة.');
       await setNewPassword(form.pw.value);
-      toast('تم تغيير كلمة السر', 'ok');
+      toast('تم تغيير كلمة المرور', 'ok');
     },
   });
 }
@@ -2257,7 +2262,7 @@ if (!configured) {
     setTimeout(() => boot(user).catch((err) => {
       console.error(err);
       bootedFor = null;
-      toast('تعذر تحميل الحساب', 'bad');
+      toast('تعذّر تحميل الحساب', 'bad');
     }), 0);
   });
 }
