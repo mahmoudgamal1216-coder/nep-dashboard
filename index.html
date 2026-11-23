@@ -250,6 +250,13 @@ code.k { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; bor
   .grid-2, .grid-3, .selfies { grid-template-columns: 1fr; }
   table.t th, table.t td { white-space: nowrap; padding: 10px 12px; }
 }
+
+.nav .count { margin-inline-start: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px;
+  background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.nav .count:empty { display: none; }
+.mission-card { border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 8px; background: var(--surface); }
+.mission-card .who { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.mission-list { display: grid; gap: 12px; }
 </style>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
@@ -306,7 +313,14 @@ const mapSite = (r) => ({
 
 const mapEngineer = (r) => ({
   id: r.id, name: r.name, code: r.code, phone: r.phone, siteIds: r.site_ids || [], active: r.active,
-  deviceId: r.device_id, createdAt: r.created_at, role: r.role,
+  deviceId: r.device_id, createdAt: r.created_at, role: r.role, missionsAllowed: r.missions_allowed === true,
+});
+
+const mapMission = (r) => ({
+  id: r.id, uid: r.uid, name: r.name, code: r.code, destination: r.destination, purpose: r.purpose,
+  status: r.status, date: r.date, requestedAt: r.requested_at, decidedAt: r.decided_at, decisionNote: r.decision_note,
+  startedAt: r.started_at, start: point(r.start_point), endedAt: r.ended_at, end: point(r.end_point),
+  durationMinutes: r.duration_minutes, flags: r.flags || [],
 });
 
 const mapAttendance = (r) => ({
@@ -385,6 +399,7 @@ async function updateEngineer(id, patch) {
   if ('phone' in patch) row.phone = patch.phone;
   if ('siteIds' in patch) row.site_ids = patch.siteIds;
   if ('deviceId' in patch) row.device_id = patch.deviceId;
+  if ('missionsAllowed' in patch) row.missions_allowed = patch.missionsAllowed === true;
   must(await sb.from('profiles').update(row).eq('id', id));
 }
 
@@ -418,6 +433,22 @@ const listAttempts = async (n = 300) =>
     ...r, createdAt: r.created_at,
   }));
 
+/** Missions from `from` (YYYY-MM-DD) on, plus anything still waiting for a decision. */
+async function listMissions(from) {
+  const [recent, open] = await Promise.all([
+    sb.from('missions').select('*').gte('date', from).order('requested_at', { ascending: false }).limit(1000),
+    sb.from('missions').select('*').in('status', ['pending', 'approved', 'active']).order('requested_at'),
+  ]);
+  const byId = new Map();
+  [...must(open), ...must(recent)].forEach((r) => byId.set(r.id, r));
+  return [...byId.values()].map(mapMission);
+}
+
+async function pendingMissionsCount() {
+  const { count, error } = await sb.from('missions').select('id', { count: 'exact', head: true }).eq('status', 'pending');
+  return error ? 0 : count || 0;
+}
+
 const urlCache = new Map();
 async function selfieUrl(path) {
   if (!path) return null;
@@ -436,7 +467,7 @@ function watch(table, cb) {
   return () => sb.removeChannel(ch);
 }
 
-return { configured, sb, mapSite, mapEngineer, mapAttendance, mapSettings, signIn, signOut, resetPasswordEmail, setNewPassword, onAuth, isAdmin, fn, listSites, saveSite, deleteSite, listEngineers, updateEngineer, getSettings, saveSettings, getChatIds, saveChatIds, attendanceOn, attendanceRange, listAttempts, selfieUrl, watch };
+return { configured, sb, mapSite, mapEngineer, mapMission, mapAttendance, mapSettings, signIn, signOut, resetPasswordEmail, setNewPassword, onAuth, isAdmin, fn, listSites, saveSite, deleteSite, listEngineers, updateEngineer, getSettings, saveSettings, getChatIds, saveChatIds, attendanceOn, attendanceRange, listAttempts, listMissions, pendingMissionsCount, selfieUrl, watch };
 })();
 
 // ===== js/ui.js =====
@@ -534,6 +565,22 @@ const REASON_LABELS = {
   selfie_missing: ['بدون سيلفي', 'warn'],
   selfie_invalid: ['سيلفي غير صالح', 'warn'],
   selfie_stale: ['سيلفي قديم', 'warn'],
+  missions_not_allowed: ['مأموريات غير مسموحة', 'warn'],
+  mission_open: ['مأمورية مفتوحة', 'info'],
+  mission_not_approved: ['مأمورية غير متوافق عليها', 'warn'],
+  mission_not_active: ['مفيش مأمورية شغالة', 'info'],
+};
+
+const TYPE_LABELS = { in: 'حضور', out: 'انصراف', mission_start: 'بدء مأمورية', mission_end: 'إنهاء مأمورية' };
+
+const MISSION_STATUS = {
+  pending: ['مستني موافقتك', 'warn'],
+  approved: ['متوافق عليها — لسه ماابتدتش', 'info'],
+  rejected: ['مرفوضة', 'bad'],
+  active: ['شغالة دلوقتي', 'ok'],
+  done: ['خلصت', ''],
+  cancelled: ['اتلغت', ''],
+  expired: ['انتهت من غير ما تبدأ', ''],
 };
 
 const FLAG_LABELS = {
@@ -677,6 +724,8 @@ const ICONS = {
   pin: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
   send: '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  car: '<path d="M5 17h14M6 17v2M18 17v2"/><path d="M3 13l2-6a2 2 0 0 1 1.9-1.4h10.2A2 2 0 0 1 19 7l2 6v4H3z"/><circle cx="7.5" cy="13.5" r="1"/><circle cx="16.5" cy="13.5" r="1"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
 };
 
 function icon(name) {
@@ -688,7 +737,7 @@ function mapsLink(lat, lng, label = 'خريطة') {
   return `<a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" rel="noopener">${esc(label)}</a>`;
 }
 
-return { TZ, esc, $, $$, toDate, dateKey, todayKey, fmtTime, fmtTime24, fmtLongDate, fmtDateTime, weekdayOfKey, weekdayIndexOfKey, fmtDuration, fmtHours, minutesBetween, parseHHMM, addDaysKey, WEEKDAYS, REASON_LABELS, FLAG_LABELS, badge, flagBadges, toast, modal, confirmDialog, withBusy, icon, mapsLink };
+return { TZ, esc, $, $$, toDate, dateKey, todayKey, fmtTime, fmtTime24, fmtLongDate, fmtDateTime, weekdayOfKey, weekdayIndexOfKey, fmtDuration, fmtHours, minutesBetween, parseHHMM, addDaysKey, WEEKDAYS, REASON_LABELS, TYPE_LABELS, MISSION_STATUS, FLAG_LABELS, badge, flagBadges, toast, modal, confirmDialog, withBusy, icon, mapsLink };
 })();
 
 // ===== js/store.js =====
@@ -1130,15 +1179,15 @@ function render(page) {
   page.innerHTML = `
     <section class="card">
       <div class="card-h">
-        <h3>المهندسين</h3>
+        <h3>الموظفين</h3>
         <div class="row">
           <input class="input" id="q" placeholder="بحث بالاسم أو الكود…" style="width:220px" />
-          <button class="btn primary" id="add">${icon('plus')} مهندس جديد</button>
+          <button class="btn primary" id="add">${icon('plus')} موظف جديد</button>
         </div>
       </div>
       <div class="card-b flush table-wrap" id="list"></div>
     </section>
-    <div class="notice">المهندس بيدخل التطبيق بـ <b>الكود</b> وكلمة السر. أول موبايل يسجل منه بيتربط بالحساب تلقائيًا، ولو غيّر موبايله اضغط "فك ربط الموبايل".</div>`;
+    <div class="notice">الموظف (مهندس أو إداري) بيدخل التطبيق بـ <b>الكود</b> وكلمة السر. أول موبايل يسجل منه بيتربط بالحساب تلقائيًا، ولو غيّر موبايله اضغط "فك ربط الموبايل".</div>`;
 
   const draw = () => {
     const { engineers, ready } = getState();
@@ -1148,17 +1197,18 @@ function render(page) {
       (e) => !q || String(e.name).toLowerCase().includes(q) || String(e.code).toLowerCase().includes(q) || String(e.phone || '').includes(q)
     );
     if (!list.length) {
-      $('#list', page).innerHTML = `<div class="empty">${engineers.length ? 'مفيش نتائج.' : 'مفيش مهندسين لسه — اضغط "مهندس جديد".'}</div>`;
+      $('#list', page).innerHTML = `<div class="empty">${engineers.length ? 'مفيش نتائج.' : 'مفيش موظفين لسه — اضغط "موظف جديد".'}</div>`;
       return;
     }
     $('#list', page).innerHTML = `<table class="t"><thead><tr>
-      <th>المهندس</th><th>الموبايل</th><th>المواقع المتعينة</th><th>الجهاز</th><th>الحالة</th><th></th>
+      <th>الموظف</th><th>الموبايل</th><th>المواقع المتعينة</th><th>مأموريات</th><th>الجهاز</th><th>الحالة</th><th></th>
     </tr></thead><tbody>${list
       .map(
         (e) => `<tr>
         <td class="person"><b>${esc(e.name)}</b><span class="ltr">${esc(e.code)}</span></td>
         <td class="num">${esc(e.phone || '—')}</td>
         <td><div class="chips">${(e.siteIds || []).map((id) => badge(siteName(id), 'info')).join('') || '<span class="muted small">لا يوجد</span>'}</div></td>
+        <td>${e.missionsAllowed ? badge('مسموح', 'info') : '<span class="muted small">—</span>'}</td>
         <td>${e.deviceId ? `${badge('مربوط', 'ok')} <button class="btn sm ghost" data-unbind="${esc(e.id)}" title="فك ربط الموبايل">${icon('phone')}</button>` : badge('غير مربوط', '')}</td>
         <td>${e.active ? badge('نشط', 'ok') : badge('موقوف', 'bad')}</td>
         <td class="actions">
@@ -1259,7 +1309,7 @@ function openEngineerModal(eng) {
   const isEdit = !!eng;
   const e = eng || { name: '', code: '', phone: '', siteIds: [] };
   modal({
-    title: isEdit ? `تعديل: ${e.name}` : 'مهندس جديد',
+    title: isEdit ? `تعديل: ${e.name}` : 'موظف جديد',
     submitLabel: isEdit ? 'حفظ' : 'إنشاء الحساب',
     body: `
       <div class="field"><label>الاسم بالكامل *</label><input class="input" name="fullName" value="${esc(e.name)}" required /></div>
@@ -1272,8 +1322,10 @@ function openEngineerModal(eng) {
       ${isEdit ? '' : `<div class="field"><label>كلمة السر *</label>
         <div class="row"><input class="input ltr" name="password" style="flex:1" value="${genPassword()}" />
         <button type="button" class="btn" data-gen>توليد</button></div>
-        <span class="hint">انسخها وابعتها للمهندس مع الكود.</span></div>`}
-      <div class="field"><label>المواقع المسموح له يسجل فيها</label>${sitesChecklist(e.siteIds || [])}</div>`,
+        <span class="hint">انسخها وابعتها للموظف مع الكود.</span></div>`}
+      <div class="field"><label>المواقع المسموح له يسجل فيها</label>${sitesChecklist(e.siteIds || [])}</div>
+      <label class="check"><input type="checkbox" name="missions" ${e.missionsAllowed ? 'checked' : ''} />
+        مسموح يطلب مأموريات (للإداريين اللي بيطلعوا مشاوير شغل)</label>`,
     onOpen: (form) => {
       const gen = form.querySelector('[data-gen]');
       if (gen) gen.addEventListener('click', () => (form.password.value = genPassword()));
@@ -1282,21 +1334,23 @@ function openEngineerModal(eng) {
       const name = form.fullName.value.trim();
       const phone = form.phone.value.trim();
       const siteIds = [...form.querySelectorAll('input[name=sites]:checked')].map((i) => i.value);
+      const missionsAllowed = form.missions.checked;
       if (name.length < 3) throw new Error('اكتب الاسم بالكامل.');
       if (isEdit) {
-        await updateEngineer(e.id, { name, phone, siteIds });
+        await updateEngineer(e.id, { name, phone, siteIds, missionsAllowed });
         refresh('engineers');
         toast('تم الحفظ', 'ok');
         return;
       }
       const code = form.code.value.trim().toUpperCase();
       const password = form.password.value;
-      await fn('createEngineer', { name, code, phone, password, siteIds });
+      const created = await fn('createEngineer', { name, code, phone, password, siteIds });
+      if (missionsAllowed && created?.uid) await updateEngineer(created.uid, { missionsAllowed: true });
       refresh('engineers');
       // Show credentials once so the admin can send them.
       modal({
         title: 'تم إنشاء الحساب ✅',
-        body: `<p>ابعت البيانات دي للمهندس:</p>
+        body: `<p>ابعت البيانات دي للموظف:</p>
           <div class="card card-b" style="background:var(--surface-2)">
             <div>الاسم: <b>${esc(name)}</b></div>
             <div>الكود: <b class="ltr">${esc(code)}</b></div>
@@ -1305,7 +1359,7 @@ function openEngineerModal(eng) {
           <div class="row" style="margin-top:12px"><button type="button" class="btn" data-copy>نسخ الرسالة</button></div>`,
         onOpen: (f) =>
           f.querySelector('[data-copy]').addEventListener('click', async () => {
-            const txt = `أهلاً م/ ${name}\nبيانات دخول تطبيق الحضور:\nالكود: ${code}\nكلمة السر: ${password}`;
+            const txt = `أهلاً ${name}\nبيانات دخول تطبيق الحضور:\nالكود: ${code}\nكلمة السر: ${password}`;
             try {
               await navigator.clipboard.writeText(txt);
               toast('تم النسخ', 'ok');
@@ -1316,6 +1370,147 @@ function openEngineerModal(eng) {
       });
     },
   });
+}
+
+return { render };
+})();
+
+// ===== js/pages/missions.js =====
+const __m_js_pages_missions = (() => {
+const { fn, listMissions, selfieUrl, watch } = __m_js_api;
+const { esc, $, badge, fmtDateTime, fmtDuration, fmtTime, icon, modal, toast, todayKey, addDaysKey, MISSION_STATUS, mapsLink } = __m_js_ui;
+// المأموريات: requests waiting for the admin's decision, missions running now, and the last 30 days.
+
+
+function render(page) {
+  let rows = [];
+  let loaded = false;
+  const from = addDaysKey(todayKey(), -30);
+
+  page.innerHTML = `
+    <div class="notice">الموظف بيطلب المأمورية من التطبيق ← توافق أو ترفض من هنا ← بعد الموافقة يقدر يبدأها وينهيها من أي مكان بسيلفي وموقعه. كل خطوة بتوصلك على تليجرام.
+      المأموريات مفعّلة بس للموظفين اللي معلّم عليهم "مسموح بمأموريات" في صفحة الموظفين.</div>
+    <section class="card">
+      <div class="card-h"><h3>${icon('car')} طلبات مستنية موافقتك</h3><span id="pendingCount"></span></div>
+      <div class="card-b" id="pending"><div class="empty"><span class="spinner"></span></div></div>
+    </section>
+    <section class="card">
+      <div class="card-h"><h3>مأموريات شغالة / متوافق عليها</h3></div>
+      <div class="card-b flush table-wrap" id="running"></div>
+    </section>
+    <section class="card">
+      <div class="card-h"><h3>سجل المأموريات (آخر 30 يوم)</h3><span class="muted small" id="total"></span></div>
+      <div class="card-b flush table-wrap" id="history"></div>
+    </section>`;
+
+  const status = (m) => {
+    const [label, kind] = MISSION_STATUS[m.status] || [m.status, ''];
+    return badge(label, kind) + (m.flags.includes('no_end') ? ' ' + badge('ماسجلش انتهاء', 'bad') : '');
+  };
+  const person = (m) => `<td class="person"><b>${esc(m.name)}</b><span class="ltr">${esc(m.code || '')}</span></td>`;
+  const where = (p) => (p ? mapsLink(p.lat, p.lng, 'المكان ↗') : '');
+
+  const table = (list, empty) =>
+    list.length
+      ? `<table class="t"><thead><tr><th>التاريخ</th><th>الموظف</th><th>رايح فين / ليه</th><th>الحالة</th><th>البداية</th><th>النهاية</th><th>المدة</th><th></th></tr></thead><tbody>${list
+          .map(
+            (m) => `<tr>
+          <td class="num">${esc(m.date)}</td>
+          ${person(m)}
+          <td><b>${esc(m.destination)}</b>${m.purpose ? `<div class="muted small">${esc(m.purpose)}</div>` : ''}
+            ${m.decisionNote ? `<div class="small">💬 ${esc(m.decisionNote)}</div>` : ''}</td>
+          <td>${status(m)}</td>
+          <td class="num">${m.startedAt ? `${fmtTime(m.startedAt)} ${where(m.start)}` : '—'}</td>
+          <td class="num">${m.endedAt ? `${fmtTime(m.endedAt)} ${where(m.end)}` : '—'}</td>
+          <td class="num">${m.status === 'done' ? fmtDuration(m.durationMinutes) : m.status === 'active' ? 'لسه شغالة' : '—'}</td>
+          <td class="actions">${m.start || m.end ? `<button class="btn sm" data-photos="${esc(m.id)}" title="الصور">${icon('camera')}</button>` : ''}</td>
+        </tr>`
+          )
+          .join('')}</tbody></table>`
+      : `<div class="empty">${empty}</div>`;
+
+  const draw = () => {
+    if (!loaded) return;
+    const pending = rows.filter((m) => m.status === 'pending');
+    const running = rows.filter((m) => m.status === 'active' || m.status === 'approved');
+    const history = rows.filter((m) => !['pending', 'active', 'approved'].includes(m.status));
+    $('#pendingCount', page).innerHTML = pending.length ? badge(`${pending.length} طلب`, 'warn') : '';
+    $('#pending', page).innerHTML = pending.length
+      ? `<div class="mission-list">${pending
+          .map(
+            (m) => `<div class="mission-card">
+          <div class="who"><b>${esc(m.name)} <span class="ltr muted small">${esc(m.code || '')}</span></b>
+            <span class="muted small">طلبها ${fmtDateTime(m.requestedAt)}</span></div>
+          <div>📍 <b>${esc(m.destination)}</b></div>
+          ${m.purpose ? `<div class="muted">📝 ${esc(m.purpose)}</div>` : ''}
+          <div class="row">
+            <button class="btn primary" data-approve="${esc(m.id)}">${icon('check')} موافقة</button>
+            <button class="btn danger" data-reject="${esc(m.id)}">${icon('x')} رفض</button>
+          </div></div>`
+          )
+          .join('')}</div>`
+      : `<div class="empty">مفيش طلبات جديدة 👍</div>`;
+    $('#running', page).innerHTML = table(running, 'مفيش مأموريات شغالة دلوقتي.');
+    $('#history', page).innerHTML = table(history, 'مفيش مأموريات في آخر 30 يوم.');
+    const total = history.filter((m) => m.status === 'done').reduce((s, m) => s + (m.durationMinutes || 0), 0);
+    $('#total', page).textContent = total ? `إجمالي وقت المأموريات: ${fmtDuration(total)}` : '';
+  };
+
+  const decide = (m, approve) =>
+    modal({
+      title: approve ? `موافقة على مأمورية ${m.name}` : `رفض مأمورية ${m.name}`,
+      submitLabel: approve ? 'موافقة' : 'رفض',
+      danger: !approve,
+      body: `<p style="margin-top:0">📍 <b>${esc(m.destination)}</b>${m.purpose ? `<br><span class="muted">${esc(m.purpose)}</span>` : ''}</p>
+        <div class="field"><label>ملاحظة للموظف (اختياري)</label>
+          <input class="input" name="note" maxlength="300" placeholder="${approve ? 'مثلاً: ارجع المكتب بعدها' : 'سبب الرفض'}" /></div>`,
+      onSubmit: async (form) => {
+        await fn('missionDecide', { id: m.id, approve, note: form.note.value.trim() });
+        toast(approve ? 'تمت الموافقة' : 'تم الرفض', 'ok');
+        load();
+      },
+    });
+
+  page.addEventListener('click', (ev) => {
+    const b = ev.target.closest('button');
+    if (!b) return;
+    const find = (id) => rows.find((x) => x.id === id);
+    if (b.dataset.approve) decide(find(b.dataset.approve), true);
+    if (b.dataset.reject) decide(find(b.dataset.reject), false);
+    if (b.dataset.photos) showMissionPhotos(find(b.dataset.photos));
+  });
+
+  const load = async () => {
+    try {
+      rows = await listMissions(from);
+      loaded = true;
+      draw();
+    } catch (err) {
+      const msg = /missions/.test(err.message) ? 'جدول المأموريات لسه متعملش في قاعدة البيانات.' : err.message;
+      ['#pending', '#running', '#history'].forEach((s) => ($(s, page).innerHTML = `<div class="empty">${esc(msg)}</div>`));
+    }
+  };
+  load();
+  const unsub = watch('missions', load);
+  const tick = setInterval(draw, 60000);
+  return () => {
+    unsub();
+    clearInterval(tick);
+  };
+}
+
+async function showMissionPhotos(m) {
+  if (!m) return;
+  const box = modal({
+    title: `مأمورية ${m.name} — ${m.destination}`,
+    body: `<div class="selfies">
+      <figure><img data-a alt="سيلفي البداية" /><figcaption>${m.startedAt ? `البداية ${fmtTime(m.startedAt)}` : 'لسه ماابتدتش'}</figcaption></figure>
+      <figure><img data-b alt="سيلفي النهاية" /><figcaption>${m.endedAt ? `النهاية ${fmtTime(m.endedAt)}` : 'لسه ماخلصتش'}</figcaption></figure>
+    </div>`,
+  });
+  const [a, b] = await Promise.all([selfieUrl(m.start?.selfiePath), selfieUrl(m.end?.selfiePath)]);
+  if (a) box.el.querySelector('[data-a]').src = a;
+  if (b) box.el.querySelector('[data-b]').src = b;
 }
 
 return { render };
@@ -1583,7 +1778,7 @@ return { render, compute };
 // ===== js/pages/security.js =====
 const __m_js_pages_security = (() => {
 const { listAttempts, watch } = __m_js_api;
-const { esc, $, badge, fmtDateTime, REASON_LABELS, mapsLink } = __m_js_ui;
+const { esc, $, badge, fmtDateTime, REASON_LABELS, TYPE_LABELS, mapsLink } = __m_js_ui;
 
 
 const SERIOUS = new Set(['mock_location', 'device_mismatch']);
@@ -1603,13 +1798,13 @@ function render(page) {
   const draw = () => {
     const list = onlySerious ? rows.filter((r) => SERIOUS.has(r.reason)) : rows;
     $('#list', page).innerHTML = list.length
-      ? `<table class="t"><thead><tr><th>الوقت</th><th>المهندس</th><th>العملية</th><th>السبب</th><th>التفاصيل</th></tr></thead><tbody>${list
+      ? `<table class="t"><thead><tr><th>الوقت</th><th>الموظف</th><th>العملية</th><th>السبب</th><th>التفاصيل</th></tr></thead><tbody>${list
           .map((r) => {
             const [label, kind] = REASON_LABELS[r.reason] || [r.reason, ''];
             return `<tr>
               <td class="num">${fmtDateTime(r.createdAt)}</td>
               <td class="person"><b>${esc(r.name || 'غير معروف')}</b><span class="ltr">${esc(r.code || '')}</span></td>
-              <td>${r.type === 'in' ? 'حضور' : 'انصراف'}</td>
+              <td>${esc(TYPE_LABELS[r.type] || r.type || '')}</td>
               <td>${badge(label, kind)}</td>
               <td class="small">${esc(r.message || '')} ${r.accuracy != null ? `<span class="muted">· دقة ±${Math.round(r.accuracy)} م</span>` : ''}
                 ${mapsLink(r.lat, r.lng, 'المكان ↗')}</td></tr>`;
@@ -1815,12 +2010,13 @@ return { render };
 
 // ===== js/app.js =====
 {
-const { configured, fn, isAdmin, onAuth, signIn, signOut, resetPasswordEmail, setNewPassword } = __m_js_api;
+const { configured, fn, isAdmin, onAuth, signIn, signOut, resetPasswordEmail, setNewPassword, pendingMissionsCount, watch } = __m_js_api;
 const { esc, icon, toast, modal, $ } = __m_js_ui;
 const { startStore, stopStore, getState, subscribe } = __m_js_store;
 const today = __m_js_pages_today;
 const sites = __m_js_pages_sites;
 const engineers = __m_js_pages_engineers;
+const missions = __m_js_pages_missions;
 const reports = __m_js_pages_reports;
 const security = __m_js_pages_security;
 const settings = __m_js_pages_settings;
@@ -1833,10 +2029,12 @@ const settings = __m_js_pages_settings;
 
 
 
+
 const ROUTES = {
   today: { title: 'لوحة اليوم', icon: 'today', page: today },
   sites: { title: 'المواقع', icon: 'site', page: sites },
-  engineers: { title: 'المهندسين', icon: 'users', page: engineers },
+  engineers: { title: 'الموظفين', icon: 'users', page: engineers },
+  missions: { title: 'المأموريات', icon: 'car', page: missions },
   reports: { title: 'التقارير', icon: 'report', page: reports },
   security: { title: 'سجل الأمان', icon: 'shield', page: security },
   settings: { title: 'الإعدادات', icon: 'settings', page: settings },
@@ -1941,7 +2139,7 @@ function renderShell(user) {
         <div class="brand">${brandMark}<div><b>حضور المواقع</b><span id="companyName"></span></div></div>
         <nav class="nav">
           ${Object.entries(ROUTES)
-            .map(([k, r]) => `<a href="#/${k}" data-route="${k}">${icon(r.icon)}<span>${r.title}</span></a>`)
+            .map(([k, r]) => `<a href="#/${k}" data-route="${k}">${icon(r.icon)}<span>${r.title}</span>${k === 'missions' ? '<b class="count" id="missionsCount"></b>' : ''}</a>`)
             .join('')}
         </nav>
         <div class="foot">كل الأوقات بتوقيت القاهرة</div>
@@ -2008,6 +2206,19 @@ async function boot(user) {
   renderShell(user);
   startStore();
   route();
+  watchPendingMissions();
+}
+
+// Red counter next to "المأموريات" in the sidebar = requests waiting for a decision.
+let stopPending = null;
+function watchPendingMissions() {
+  if (stopPending) stopPending();
+  const update = async () => {
+    const el = $('#missionsCount');
+    if (el) el.textContent = (await pendingMissionsCount()) || '';
+  };
+  update();
+  stopPending = watch('missions', update);
 }
 
 function askNewPassword() {
@@ -2037,6 +2248,8 @@ if (!configured) {
       currentUser = null;
       bootedFor = null;
       stopStore();
+      if (stopPending) stopPending();
+      stopPending = null;
       return renderLogin();
     }
     // Don't await inside the auth callback (supabase-js recommendation).
