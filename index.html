@@ -263,6 +263,40 @@ code.k { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; bor
 .mission-card { border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 8px; background: var(--surface); }
 .mission-card .who { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .mission-list { display: grid; gap: 12px; }
+
+/* ---------- HR: employee file & payroll ---------- */
+.hr-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.kpi .value.bad { color: var(--bad); }
+.kpi.brand { background: var(--brand); border-color: var(--brand); color: #fff; }
+.kpi.brand .label { color: var(--brand-ink); }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 24px; margin: 0; }
+.facts dt { font-size: 12.5px; color: var(--muted); margin-bottom: 2px; }
+.facts dd { margin: 0; font-weight: 600; }
+.balance { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.balance .bx { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); display: flex; flex-direction: column; gap: 4px; }
+.balance .bx span { font-size: 12.5px; color: var(--muted); }
+.balance .bx b { font-size: 22px; font-variant-numeric: tabular-nums; }
+.balance .bx.ok { background: var(--ok-bg); border-color: transparent; }
+.balance .bx.ok b { color: var(--ok); }
+.balance .bx.bad { background: var(--bad-bg); border-color: transparent; }
+.balance .bx.bad b { color: var(--bad); }
+table.t tr.total td { font-weight: 700; background: var(--surface-2); border-top: 2px solid var(--line); }
+table.t td.num { font-variant-numeric: tabular-nums; }
+table.pay td.num { white-space: nowrap; }
+.neg { color: var(--bad); }
+.stack { display: flex; flex-direction: column; gap: 20px; }
+.slip-h { display: flex; gap: 14px; align-items: center; border-bottom: 2px solid var(--brand); padding-bottom: 10px; margin-bottom: 14px; }
+.slip-h img { height: 44px; }
+.slip .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 14px; }
+.slip-cols { gap: 14px; align-items: start; }
+.slip-cols table.t th, .slip-cols table.t td { padding: 8px 10px; }
+.slip-net { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding: 12px 16px; background: var(--brand); color: #fff; border-radius: 10px; font-size: 17px; }
+.slip-net b { font-size: 22px; font-variant-numeric: tabular-nums; }
+@media (max-width: 1100px) { .hr-kpis, .balance { grid-template-columns: repeat(2, minmax(0, 1fr)); } .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 860px) { .facts, .slip .facts { grid-template-columns: 1fr; } }
+table.t .person.wide { min-width: 230px; }
+table.emp td.num, table.emp td.actions { white-space: nowrap; }
+table.emp th { white-space: normal; line-height: 1.3; }
 </style>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
@@ -455,6 +489,105 @@ async function pendingMissionsCount() {
   return error ? 0 : count || 0;
 }
 
+/* ---------------- HR & payroll (admin only) ---------------- */
+
+const num = (v) => (v == null || v === '' ? null : Number(v));
+
+const mapHr = (r) => ({
+  uid: r.uid, jobTitle: r.job_title || '', hireDate: r.hire_date, birthDate: r.birth_date, insured: r.insured !== false,
+  insuranceWage: num(r.insurance_wage), taxExempt: r.tax_exempt === true, leaveOpening: Number(r.leave_opening || 0),
+  leaveDaysOverride: num(r.leave_days_override), notes: r.notes || '',
+});
+const mapSalary = (r) => ({
+  id: r.id, uid: r.uid, effectiveDate: r.effective_date, basicSalary: Number(r.basic_salary), allowances: Number(r.allowances || 0),
+  note: r.note || '', createdAt: r.created_at,
+});
+const mapLeave = (r) => ({
+  id: r.id, uid: r.uid, kind: r.kind, startDate: r.start_date, endDate: r.end_date, days: Number(r.days), note: r.note || '',
+});
+const PS_MAP = {
+  otMultiplier: 'ot_multiplier', dayDivisor: 'day_divisor', deductAbsence: 'deduct_absence', deductLate: 'deduct_late',
+  insuranceEnabled: 'insurance_enabled', insuranceRate: 'insurance_rate', insuranceMin: 'insurance_min',
+  insuranceMax: 'insurance_max', taxEnabled: 'tax_enabled', taxPersonalExemption: 'tax_personal_exemption',
+  martyrsRate: 'martyrs_rate',
+};
+const mapPs = (r) =>
+  Object.fromEntries(Object.entries(PS_MAP).map(([k, col]) => [k, typeof r[col] === 'boolean' ? r[col] : Number(r[col])]));
+
+async function loadHr() {
+  const [h, s, l, p] = await Promise.all([
+    sb.from('hr_employees').select('*'),
+    sb.from('salary_changes').select('*').order('effective_date'),
+    sb.from('leaves').select('*').order('start_date', { ascending: false }),
+    sb.from('payroll_settings').select('*').eq('id', 1).maybeSingle(),
+  ]);
+  if (h.error && /relation|does not exist|schema cache/i.test(h.error.message || '')) {
+    return { hr: [], salaries: [], leaves: [], payrollSettings: null, missing: true };
+  }
+  return {
+    hr: must(h).map(mapHr),
+    salaries: must(s).map(mapSalary),
+    leaves: must(l).map(mapLeave),
+    payrollSettings: p.data ? mapPs(p.data) : null,
+    missing: false,
+  };
+}
+
+async function saveHr(uid, o) {
+  const row = {
+    uid, job_title: o.jobTitle ?? '', hire_date: o.hireDate || null, birth_date: o.birthDate || null,
+    insured: o.insured !== false, insurance_wage: o.insuranceWage || null, tax_exempt: o.taxExempt === true,
+    leave_opening: Number(o.leaveOpening || 0), leave_days_override: o.leaveDaysOverride ?? null, notes: o.notes ?? '',
+    updated_at: new Date().toISOString(),
+  };
+  must(await sb.from('hr_employees').upsert(row));
+}
+const addSalaryChange = async (uid, c) =>
+  must(await sb.from('salary_changes').insert({
+    uid, effective_date: c.effectiveDate, basic_salary: c.basicSalary, allowances: c.allowances || 0, note: c.note || '',
+  }));
+const deleteSalaryChange = async (id) => must(await sb.from('salary_changes').delete().eq('id', id));
+const addLeave = async (uid, l) =>
+  must(await sb.from('leaves').insert({
+    uid, kind: l.kind, start_date: l.startDate, end_date: l.endDate, days: l.days, note: l.note || '',
+  }));
+const deleteLeave = async (id) => must(await sb.from('leaves').delete().eq('id', id));
+
+const savePayrollSettings = async (o) =>
+  must(await sb.from('payroll_settings').update(
+    Object.fromEntries(Object.entries(o).filter(([k]) => PS_MAP[k]).map(([k, v]) => [PS_MAP[k], v]))
+  ).eq('id', 1));
+
+const listAdjustments = async (month) =>
+  must(await sb.from('payroll_adjustments').select('*').eq('month', month)).map((r) => ({
+    uid: r.uid, month: r.month, bonus: Number(r.bonus || 0), deduction: Number(r.deduction || 0),
+    advance: Number(r.advance || 0), note: r.note || '',
+  }));
+const saveAdjustment = async (uid, month, a) =>
+  must(await sb.from('payroll_adjustments').upsert({
+    uid, month, bonus: a.bonus || 0, deduction: a.deduction || 0, advance: a.advance || 0, note: a.note || '',
+    updated_at: new Date().toISOString(),
+  }));
+
+async function attendanceForUser(uid, from, to) {
+  const out = [];
+  for (let i = 0; i < 50; i++) {
+    const rows = must(
+      await sb.from('attendance').select('*').eq('uid', uid).gte('date', from).lte('date', to)
+        .order('date').range(i * 1000, i * 1000 + 999)
+    );
+    out.push(...rows);
+    if (rows.length < 1000) break;
+  }
+  return out.map(mapAttendance);
+}
+
+const missionsBetween = async (from, to, uid) => {
+  let q = sb.from('missions').select('*').gte('date', from).lte('date', to).in('status', ['active', 'done']);
+  if (uid) q = q.eq('uid', uid);
+  return must(await q.limit(5000)).map(mapMission);
+};
+
 const urlCache = new Map();
 async function selfieUrl(path) {
   if (!path) return null;
@@ -473,7 +606,7 @@ function watch(table, cb) {
   return () => sb.removeChannel(ch);
 }
 
-return { configured, sb, mapSite, mapEngineer, mapMission, mapAttendance, mapSettings, signIn, signOut, resetPasswordEmail, setNewPassword, onAuth, isAdmin, fn, listSites, saveSite, deleteSite, listEngineers, updateEngineer, getSettings, saveSettings, getChatIds, saveChatIds, attendanceOn, attendanceRange, listAttempts, listMissions, pendingMissionsCount, selfieUrl, watch };
+return { configured, sb, mapSite, mapEngineer, mapMission, mapAttendance, mapSettings, signIn, signOut, resetPasswordEmail, setNewPassword, onAuth, isAdmin, fn, listSites, saveSite, deleteSite, listEngineers, updateEngineer, getSettings, saveSettings, getChatIds, saveChatIds, attendanceOn, attendanceRange, listAttempts, listMissions, pendingMissionsCount, mapHr, mapSalary, mapLeave, loadHr, saveHr, addSalaryChange, deleteSalaryChange, addLeave, deleteLeave, savePayrollSettings, listAdjustments, saveAdjustment, attendanceForUser, missionsBetween, selfieUrl, watch };
 })();
 
 // ===== js/ui.js =====
@@ -732,6 +865,8 @@ const ICONS = {
   search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
   car: '<path d="M5 17h14M6 17v2M18 17v2"/><path d="M3 13l2-6a2 2 0 0 1 1.9-1.4h10.2A2 2 0 0 1 19 7l2 6v4H3z"/><circle cx="7.5" cy="13.5" r="1"/><circle cx="16.5" cy="13.5" r="1"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
+  money: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 10v4M18 10v4"/>',
+  file: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
 };
 
 function icon(name) {
@@ -748,7 +883,7 @@ return { TZ, esc, $, $$, toDate, dateKey, todayKey, fmtTime, fmtTime24, fmtLongD
 
 // ===== js/store.js =====
 const __m_js_store = (() => {
-const { listSites, listEngineers, getSettings, watch } = __m_js_api;
+const { listSites, listEngineers, getSettings, loadHr, watch } = __m_js_api;
 // Live shared data (sites, engineers, settings) used across pages.
 
 const DEFAULT_SETTINGS = {
@@ -765,11 +900,30 @@ const DEFAULT_SETTINGS = {
   selfieRetentionDays: 90,
 };
 
+const DEFAULT_PAYROLL = {
+  otMultiplier: 1.5,
+  dayDivisor: 30,
+  deductAbsence: true,
+  deductLate: true,
+  insuranceEnabled: true,
+  insuranceRate: 11,
+  insuranceMin: 2700,
+  insuranceMax: 16700,
+  taxEnabled: true,
+  taxPersonalExemption: 20000,
+  martyrsRate: 0.05,
+};
+
 const state = {
   sites: [],
   engineers: [],
   settings: { ...DEFAULT_SETTINGS },
-  ready: { sites: false, engineers: false, settings: false },
+  hr: [],
+  salaries: [],
+  leaves: [],
+  payrollSettings: { ...DEFAULT_PAYROLL },
+  hrMissing: false,
+  ready: { sites: false, engineers: false, settings: false, hr: false },
 };
 const subs = new Set();
 let unsubs = [];
@@ -781,6 +935,14 @@ async function load(key) {
     if (key === 'sites') state.sites = await listSites();
     if (key === 'engineers') state.engineers = await listEngineers();
     if (key === 'settings') state.settings = { ...DEFAULT_SETTINGS, ...(await getSettings()) };
+    if (key === 'hr') {
+      const h = await loadHr();
+      state.hr = h.hr;
+      state.salaries = h.salaries;
+      state.leaves = h.leaves;
+      state.payrollSettings = { ...DEFAULT_PAYROLL, ...(h.payrollSettings || {}) };
+      state.hrMissing = h.missing;
+    }
     state.ready[key] = true;
     emit();
   } catch (err) {
@@ -790,11 +952,12 @@ async function load(key) {
 
 function startStore() {
   stopStore();
-  ['sites', 'engineers', 'settings'].forEach(load);
+  ['sites', 'engineers', 'settings', 'hr'].forEach(load);
   unsubs = [
     watch('sites', () => load('sites')),
     watch('profiles', () => load('engineers')),
     watch('settings', () => load('settings')),
+    ...['hr_employees', 'salary_changes', 'leaves', 'payroll_settings'].map((t) => watch(t, () => load('hr'))),
   ];
 }
 
@@ -813,7 +976,11 @@ function subscribe(fn) {
 }
 const siteName = (id) => state.sites.find((s) => s.id === id)?.name || '—';
 
-return { DEFAULT_SETTINGS, startStore, refresh, stopStore, getState, subscribe, siteName };
+const hrOf = (uid) => state.hr.find((h) => h.uid === uid) || null;
+const salariesOf = (uid) => state.salaries.filter((s) => s.uid === uid);
+const leavesOf = (uid) => state.leaves.filter((l) => l.uid === uid);
+
+return { DEFAULT_SETTINGS, DEFAULT_PAYROLL, startStore, refresh, stopStore, getState, subscribe, siteName, hrOf, salariesOf, leavesOf };
 })();
 
 // ===== js/pages/today.js =====
@@ -1172,16 +1339,655 @@ function openSiteModal(site) {
 return { render, parseCoords };
 })();
 
+// ===== js/hr.js =====
+const __m_js_hr = (() => {
+
+// HR & payroll calculations (pure functions — no DOM, no Supabase), so they can be unit-tested.
+// Dates are 'YYYY-MM-DD' keys in Cairo time.
+
+const pad = (n) => String(n).padStart(2, '0');
+const keyToUTC = (k) => new Date(`${k}T12:00:00Z`);
+const addDays = (k, n) => {
+  const d = keyToUTC(k);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+const weekdayIdx = (k) => keyToUTC(k).getUTCDay();
+const monthStart = (m) => `${m}-01`;
+const monthEnd = (m) => {
+  const [y, mo] = m.split('-').map(Number);
+  return `${m}-${pad(new Date(Date.UTC(y, mo, 0)).getUTCDate())}`;
+};
+const daysInMonth = (m) => Number(monthEnd(m).slice(8));
+const maxKey = (...ks) => ks.filter(Boolean).sort().pop();
+const minKey = (...ks) => ks.filter(Boolean).sort()[0];
+const round2 = (x) => Math.round((x + Number.EPSILON) * 100) / 100;
+
+/** Whole years + months between two date keys. */
+function serviceLength(from, to) {
+  if (!from || !to || to < from) return { years: 0, months: 0, totalMonths: 0 };
+  const [y1, m1, d1] = from.split('-').map(Number);
+  const [y2, m2, d2] = to.split('-').map(Number);
+  let total = (y2 - y1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0);
+  if (total < 0) total = 0;
+  return { years: Math.floor(total / 12), months: total % 12, totalMonths: total };
+}
+
+const LEAVE_KINDS = {
+  annual: { label: 'اعتيادية', fromBalance: true, paid: true },
+  casual: { label: 'عارضة', fromBalance: true, paid: true },
+  sick: { label: 'مرضية', fromBalance: false, paid: true },
+  unpaid: { label: 'بدون أجر', fromBalance: false, paid: false },
+  other: { label: 'أخرى (مدفوعة)', fromBalance: false, paid: true },
+};
+
+/**
+ * Yearly annual-leave entitlement (Egyptian labour law): nothing before 6 months of service,
+ * 15 days in the first year, 21 days after, 30 days after 10 years of service or from age 50.
+ */
+function leaveEntitlement(hr, today) {
+  if (hr?.leaveDaysOverride != null && hr.leaveDaysOverride !== '') return Number(hr.leaveDaysOverride);
+  if (!hr?.hireDate) return 21;
+  const s = serviceLength(hr.hireDate, today);
+  if (s.totalMonths < 6) return 0;
+  const age = hr.birthDate ? serviceLength(hr.birthDate, today).years : 0;
+  if (s.years >= 10 || age >= 50) return 30;
+  if (s.years < 1) return 15;
+  return 21;
+}
+
+/** Leave balance for the calendar year of `today`. */
+function leaveBalance(hr, leaves, today) {
+  const year = today.slice(0, 4);
+  const entitlement = leaveEntitlement(hr, today);
+  const opening = Number(hr?.leaveOpening || 0);
+  const inYear = leaves.filter((l) => l.startDate.slice(0, 4) === year);
+  const used = inYear.filter((l) => LEAVE_KINDS[l.kind]?.fromBalance).reduce((a, l) => a + Number(l.days || 0), 0);
+  const casual = inYear.filter((l) => l.kind === 'casual').reduce((a, l) => a + Number(l.days || 0), 0);
+  return { year, entitlement, opening, used, casual, remaining: round2(entitlement + opening - used) };
+}
+
+/** Work days (by the settings' weekdays) between two keys, inclusive. */
+function workdaysBetween(from, to, workDays) {
+  const out = [];
+  if (!from || !to) return out;
+  for (let k = from; k <= to; k = addDays(k, 1)) if (workDays.includes(weekdayIdx(k))) out.push(k);
+  return out;
+}
+
+/** Salary in force on `date`: the latest change with effective_date <= date. */
+function salaryOn(changes, date) {
+  let best = null;
+  for (const c of changes) if (c.effectiveDate <= date && (!best || c.effectiveDate >= best.effectiveDate)) best = c;
+  return best;
+}
+
+/**
+ * Attendance summary of one employee over [from, to] (to is capped at today).
+ * Days with a started/finished mission count as present. Leave days are excused.
+ */
+function summarize({ from, to, today, startKey, rows, missions, leaves, settings }) {
+  const workDays = settings.workDays || [];
+  const standard = Math.max(0, (settings.workEndMin ?? 1020) - (settings.workStartMin ?? 480));
+  const last = minKey(to, today);
+  const first = maxKey(from, startKey);
+  const days = new Map(); // key -> { minutes, late }
+  const touch = (k) => {
+    if (!days.has(k)) days.set(k, { minutes: 0, late: 0 });
+    return days.get(k);
+  };
+  let noCheckout = 0;
+  for (const r of rows) {
+    if (r.date < from || r.date > to) continue;
+    const d = touch(r.date);
+    d.minutes += r.durationMinutes || 0;
+    if (r.late) d.late = Math.max(d.late, r.lateMinutes || 0);
+    if (r.status === 'auto_closed' || (r.flags || []).includes('no_checkout')) noCheckout += 1;
+  }
+  let missionDays = 0;
+  for (const m of missions) {
+    if (!['active', 'done'].includes(m.status) || m.date < from || m.date > to) continue;
+    const d = touch(m.date);
+    d.minutes += m.durationMinutes || 0;
+    missionDays += 1;
+  }
+  const leaveDay = new Map(); // key -> kind (work days only)
+  for (const l of leaves) {
+    for (let k = maxKey(l.startDate, from); k <= minKey(l.endDate, to); k = addDays(k, 1)) {
+      if (workDays.includes(weekdayIdx(k))) leaveDay.set(k, l.kind);
+    }
+  }
+  const expected = first && last && first <= last ? workdaysBetween(first, last, workDays) : [];
+  let absent = 0, unpaid = 0, paidLeave = 0;
+  for (const k of expected) {
+    if (days.has(k)) continue;
+    const kind = leaveDay.get(k);
+    if (!kind) absent += 1;
+    else if (LEAVE_KINDS[kind]?.paid) paidLeave += 1;
+    else unpaid += 1;
+  }
+  let totalMinutes = 0, overtimeMinutes = 0, lateDays = 0, lateMinutes = 0, presentWork = 0, offDaysWorked = 0;
+  for (const [k, d] of days) {
+    totalMinutes += d.minutes;
+    if (d.late) {
+      lateDays += 1;
+      lateMinutes += d.late;
+    }
+    if (workDays.includes(weekdayIdx(k))) {
+      presentWork += 1;
+      overtimeMinutes += Math.max(0, d.minutes - standard);
+    } else {
+      offDaysWorked += 1;
+      overtimeMinutes += d.minutes;
+    }
+  }
+  return {
+    workdays: expected.length, presentDays: days.size, presentWork, offDaysWorked, missionDays,
+    absent, unpaid, paidLeave, lateDays, lateMinutes, totalMinutes, overtimeMinutes, noCheckout, standard,
+  };
+}
+
+/* ---------------- tax & insurance (Egypt) ---------------- */
+
+// Yearly salary-tax bands (Income Tax Law 91/2005 as amended by Law 7/2024).
+const TAX_BANDS = [
+  [40000, 0], [55000, 0.10], [70000, 0.15], [200000, 0.20], [400000, 0.225], [1200000, 0.25], [Infinity, 0.275],
+];
+
+/** Yearly tax on yearly taxable income (after the personal exemption). Lower bands fall away for high incomes. */
+function annualTax(taxable) {
+  if (!(taxable > 0)) return 0;
+  const start = taxable > 1200000 ? 5 : taxable > 900000 ? 4 : taxable > 800000 ? 3 : taxable > 700000 ? 2 : taxable > 600000 ? 1 : 0;
+  let tax = 0, prev = 0;
+  for (let i = 0; i < TAX_BANDS.length; i++) {
+    const [cap, rate] = TAX_BANDS[i];
+    const r = i < start ? TAX_BANDS[start][1] : rate;
+    const slice = Math.min(taxable, cap) - prev;
+    if (slice > 0) tax += slice * r;
+    prev = cap;
+    if (taxable <= cap) break;
+  }
+  return tax;
+}
+
+/**
+ * One employee's payroll for month `m` ('YYYY-MM').
+ * att = summarize(...) for that month; adj = { bonus, deduction, advance }.
+ */
+function payrollLine({ m, hr, changes, att, adj, ps, settings }) {
+  const end = monthEnd(m);
+  const sal = salaryOn(changes, end);
+  const basic = Number(sal?.basicSalary || 0);
+  const allowances = Number(sal?.allowances || 0);
+  const full = basic + allowances;
+  // Joined during the month → pay only the days from the hire date.
+  const dim = daysInMonth(m);
+  let payDays = dim;
+  if (hr?.hireDate && hr.hireDate > monthStart(m) && hr.hireDate <= end) payDays = dim - Number(hr.hireDate.slice(8)) + 1;
+  if (hr?.hireDate && hr.hireDate > end) payDays = 0;
+  const earned = round2((full * payDays) / dim);
+
+  const dayRate = full / (ps.dayDivisor || 30);
+  const stdHours = (att?.standard || (settings.workEndMin - settings.workStartMin) || 420) / 60;
+  const hourRate = stdHours > 0 ? dayRate / stdHours : 0;
+
+  const otHours = round2((att?.overtimeMinutes || 0) / 60);
+  const otPay = round2(otHours * hourRate * Number(ps.otMultiplier || 1.5));
+  const absenceDed = ps.deductAbsence ? round2((att?.absent || 0) * dayRate) : 0;
+  const unpaidDed = round2((att?.unpaid || 0) * dayRate);
+  const lateDed = ps.deductLate ? round2(((att?.lateMinutes || 0) / 60) * hourRate) : 0;
+  const bonus = Number(adj?.bonus || 0);
+  const gross = round2(earned + otPay + bonus);
+  const attendanceDed = round2(absenceDed + unpaidDed + lateDed);
+
+  let insWage = 0, insurance = 0;
+  if (ps.insuranceEnabled && hr?.insured !== false && full > 0) {
+    insWage = Number(hr?.insuranceWage || 0) || full;
+    insWage = Math.min(Math.max(insWage, Number(ps.insuranceMin || 0)), Number(ps.insuranceMax || Infinity));
+    insurance = round2((insWage * Number(ps.insuranceRate || 0)) / 100);
+  }
+  const taxableMonthly = Math.max(0, gross - attendanceDed - insurance);
+  let tax = 0;
+  if (ps.taxEnabled && !hr?.taxExempt) {
+    tax = round2(annualTax(taxableMonthly * 12 - Number(ps.taxPersonalExemption || 0)) / 12);
+  }
+  const martyrs = round2(((gross - attendanceDed) * Number(ps.martyrsRate || 0)) / 100);
+  const otherDed = Number(adj?.deduction || 0);
+  const advance = Number(adj?.advance || 0);
+  const totalDed = round2(attendanceDed + insurance + tax + martyrs + otherDed + advance);
+  const net = round2(gross - totalDed);
+  return {
+    hasSalary: !!sal, basic, allowances, full, payDays, dim, earned, dayRate: round2(dayRate), hourRate: round2(hourRate),
+    otHours, otPay, absent: att?.absent || 0, absenceDed, unpaid: att?.unpaid || 0, unpaidDed,
+    lateMinutes: att?.lateMinutes || 0, lateDed, bonus, gross, insWage, insurance, tax, martyrs, otherDed, advance,
+    attendanceDed, totalDed, net,
+  };
+}
+
+return { addDays, weekdayIdx, monthStart, monthEnd, daysInMonth, maxKey, minKey, serviceLength, LEAVE_KINDS, leaveEntitlement, leaveBalance, workdaysBetween, salaryOn, summarize, TAX_BANDS, annualTax, payrollLine };
+})();
+
+// ===== js/pages/employee.js =====
+const __m_js_pages_employee = (() => {
+const { saveHr, addSalaryChange, deleteSalaryChange, addLeave, deleteLeave, attendanceForUser, missionsBetween } = __m_js_api;
+const { getState, subscribe, hrOf, salariesOf, leavesOf, siteName, refresh } = __m_js_store;
+const { esc, $, badge, icon, modal, toast, confirmDialog, todayKey, dateKey, toDate, fmtHours, fmtDuration, parseHHMM } = __m_js_ui;
+const { LEAVE_KINDS, leaveBalance, leaveEntitlement, salaryOn, serviceLength, summarize, workdaysBetween, addDays, monthEnd, maxKey, minKey, } = __m_js_hr;
+// Employee file: job data, salary & raises history, leave balance, and a monthly report since hiring.
+
+
+
+
+const money = (v) =>
+  v == null || Number.isNaN(Number(v)) ? '—' : Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+const monthLabel = (m) => `${MONTHS[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
+const unit = (n, one, two, few, many) => (n === 1 ? one : n === 2 ? two : n <= 10 ? `${n} ${few}` : `${n} ${many}`);
+const serviceText = (s) =>
+  [s.years ? unit(s.years, 'سنة', 'سنتان', 'سنوات', 'سنة') : '', s.months ? unit(s.months, 'شهر', 'شهران', 'أشهر', 'شهرًا') : '']
+    .filter(Boolean).join(' و') || 'أقل من شهر';
+
+/** Settings with work hours in minutes, as hr.js expects. */
+const hrSettings = () => {
+  const s = getState().settings;
+  return { ...s, workStartMin: parseHHMM(s.workStart) ?? 480, workEndMin: parseHHMM(s.workEnd) ?? 1020 };
+};
+
+/** First day absences can be counted: the later of the hiring date and the account's creation. */
+const countFrom = (e, hr) => maxKey(hr?.hireDate, e?.createdAt ? dateKey(toDate(e.createdAt)) : null);
+
+function render(page) {
+  const id = new URLSearchParams(location.hash.split('?')[1] || '').get('id');
+  let report = null;
+  let loading = false;
+
+  page.innerHTML = `<div id="body" class="stack"><div class="empty"><span class="spinner"></span></div></div>`;
+
+  const draw = () => {
+    const { engineers, ready, hrMissing } = getState();
+    if (!ready.engineers || !ready.hr) return;
+    const e = engineers.find((x) => x.id === id);
+    if (!e) return ($('#body', page).innerHTML = `<div class="card card-b">لم يُعثر على الموظف. <a href="#/engineers">العودة إلى الموظفين</a></div>`);
+    if (hrMissing) return ($('#body', page).innerHTML = `<div class="notice warn">جداول ملف الموظف والرواتب لم تُفعَّل بعد في قاعدة البيانات.</div>`);
+    const today = todayKey();
+    const hr = hrOf(id) || {};
+    const sal = salariesOf(id);
+    const lv = leavesOf(id);
+    const cur = salaryOn(sal, today);
+    const bal = leaveBalance(hr, lv, today);
+    const svc = hr.hireDate ? serviceLength(hr.hireDate, today) : null;
+
+    $('#body', page).innerHTML = `
+      <section class="card"><div class="card-h">
+        <div class="person"><b style="font-size:18px">${esc(e.name)}</b>
+          <span><span class="ltr">${esc(e.code)}</span> · ${esc(hr.jobTitle || 'لم تُحدَّد الوظيفة')} · ${e.active ? 'نشط' : 'موقوف'}</span></div>
+        <div class="row">
+          <a class="btn" href="#/engineers">رجوع</a>
+          <button class="btn primary" data-act="edit">${icon('edit')} البيانات الوظيفية</button>
+          <button class="btn" data-act="xls">${icon('download')} تصدير Excel</button>
+        </div></div></section>
+
+      <section class="kpis hr-kpis">
+        ${kpi('الراتب الحالي', cur ? money(cur.basicSalary + cur.allowances) : '—', cur ? `أساسي ${money(cur.basicSalary)} + بدلات ${money(cur.allowances)}` : 'لم يُسجَّل راتب')}
+        ${kpi('رصيد الإجازات', `${fmtNum(bal.remaining)} يوم`, `من ${fmtNum(bal.entitlement + bal.opening)} لعام ${bal.year}`, bal.remaining < 0 ? 'bad' : '')}
+        ${kpi('مدة الخدمة', svc ? serviceText(svc) : '—', hr.hireDate ? `منذ ${hr.hireDate}` : 'لم يُحدَّد تاريخ التعيين')}
+        ${kpi('آخر زيادة', lastRaise(sal), '')}
+      </section>
+
+      <section class="card"><div class="card-h"><h3>البيانات الوظيفية</h3></div>
+        <div class="card-b"><dl class="facts">
+          ${fact('الوظيفة', esc(hr.jobTitle || '—'))}
+          ${fact('تاريخ التعيين', hr.hireDate ? `<span class="ltr">${hr.hireDate}</span>` : '—')}
+          ${fact('تاريخ الميلاد', hr.birthDate ? `<span class="ltr">${hr.birthDate}</span>` : '—')}
+          ${fact('الهاتف', esc(e.phone || '—'))}
+          ${fact('مواقع العمل', (e.siteIds || []).map((s) => esc(siteName(s))).join('، ') || '—')}
+          ${fact('مواعيد العمل', `${esc(getState().settings.workStart)} – ${esc(getState().settings.workEnd)} (${fmtNum((hrSettings().workEndMin - hrSettings().workStartMin) / 60)} ساعات يوميًا)`)}
+          ${fact('التأمينات', hr.insured === false ? 'غير مؤمَّن عليه' : `مؤمَّن عليه${hr.insuranceWage ? ` — أجر الاشتراك ${money(hr.insuranceWage)}` : ''}`)}
+          ${fact('ضريبة كسب العمل', hr.taxExempt ? 'معفى' : 'تُحتسب')}
+          ${hr.notes ? fact('ملاحظات', esc(hr.notes)) : ''}
+        </dl></div></section>
+
+      <section class="card"><div class="card-h"><h3>الراتب والزيادات</h3>
+        <button class="btn primary sm" data-act="raise">${icon('plus')} تسجيل زيادة / تعديل راتب</button></div>
+        <div class="card-b flush table-wrap">${salaryTable(sal)}</div></section>
+
+      <section class="card"><div class="card-h"><h3>الإجازات</h3>
+        <button class="btn primary sm" data-act="leave">${icon('plus')} تسجيل إجازة</button></div>
+        <div class="card-b">
+          <div class="balance">
+            ${bx('المستحق لعام ' + bal.year, bal.entitlement)}
+            ${bx('مرحَّل من قبل', bal.opening)}
+            ${bx('المستخدَم (اعتيادية + عارضة)', bal.used)}
+            ${bx('المتبقي', bal.remaining, bal.remaining < 0 ? 'bad' : 'ok')}
+          </div>
+          <p class="muted small" style="margin:10px 0 0">${hr.leaveDaysOverride != null ? 'رصيد سنوي مخصص لهذا الموظف.' : 'حسب قانون العمل: لا رصيد قبل 6 أشهر، و15 يومًا في السنة الأولى، و21 يومًا بعدها، و30 يومًا بعد 10 سنوات خدمة أو بلوغ 50 عامًا.'} العارضة تُخصم من الرصيد السنوي (المستخدَم منها هذا العام: ${fmtNum(bal.casual)} يوم).</p>
+        </div>
+        <div class="card-b flush table-wrap">${leaveTable(lv)}</div></section>
+
+      <section class="card"><div class="card-h"><h3>تقرير الحضور منذ التعيين</h3><span class="muted small" id="repMeta"></span></div>
+        <div class="card-b flush table-wrap" id="report"><div class="empty"><span class="spinner"></span></div></div></section>`;
+    drawReport();
+  };
+
+  const loadReport = async () => {
+    const e = getState().engineers.find((x) => x.id === id);
+    if (!e || loading) return;
+    loading = true;
+    try {
+      const hr = hrOf(id);
+      const today = todayKey();
+      const from = countFrom(e, hr) || today;
+      const [rows, missions] = await Promise.all([attendanceForUser(id, from, today), missionsBetween(from, today, id)]);
+      report = { from, rows, missions };
+      drawReport();
+    } catch (err) {
+      const el = $('#report', page);
+      if (el) el.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
+    } finally {
+      loading = false;
+    }
+  };
+
+  const months = () => {
+    if (!report) return [];
+    const e = getState().engineers.find((x) => x.id === id);
+    const hr = hrOf(id);
+    const today = todayKey();
+    const settings = hrSettings();
+    const out = [];
+    for (let m = report.from.slice(0, 7); m <= today.slice(0, 7); m = addDays(monthEnd(m), 1).slice(0, 7)) {
+      const from = maxKey(`${m}-01`, report.from);
+      const to = minKey(monthEnd(m), today);
+      const a = summarize({
+        from, to, today, startKey: countFrom(e, hr), rows: report.rows, missions: report.missions, leaves: leavesOf(id), settings,
+      });
+      out.push({ m, ...a });
+    }
+    return out.reverse();
+  };
+
+  const drawReport = () => {
+    const el = $('#report', page);
+    if (!el) return;
+    if (!report) {
+      el.innerHTML = `<div class="empty"><span class="spinner"></span></div>`;
+      return;
+    }
+    const list = months();
+    const tot = list.reduce((a, r) => {
+      for (const k of ['workdays', 'presentDays', 'absent', 'paidLeave', 'unpaid', 'lateDays', 'lateMinutes', 'totalMinutes', 'overtimeMinutes', 'missionDays']) a[k] = (a[k] || 0) + r[k];
+      return a;
+    }, {});
+    $('#repMeta', page).textContent = `منذ ${report.from} · بدأ احتساب الغياب من تاريخ التعيين أو من بدء استخدام النظام (الأحدث)`;
+    el.innerHTML = list.length
+      ? `<table class="t"><thead><tr><th>الشهر</th><th>أيام عمل</th><th>حضور</th><th>غياب</th><th>إجازة</th><th>بدون أجر</th><th>مأموريات</th><th>تأخير</th><th>ساعات العمل</th><th>إضافي (ساعة)</th></tr></thead>
+        <tbody>${list.map((r) => `<tr>
+          <td><b>${monthLabel(r.m)}</b></td><td class="num">${r.workdays}</td><td class="num">${r.presentDays}</td>
+          <td class="num">${r.absent ? badge(r.absent, 'bad') : 0}</td><td class="num">${r.paidLeave}</td>
+          <td class="num">${r.unpaid ? badge(r.unpaid, 'warn') : 0}</td><td class="num">${r.missionDays}</td>
+          <td class="num">${r.lateDays ? `${badge(r.lateDays, 'warn')} <span class="muted small">${fmtDuration(r.lateMinutes)}</span>` : 0}</td>
+          <td class="num">${fmtHours(r.totalMinutes)}</td><td class="num">${fmtHours(r.overtimeMinutes)}</td></tr>`).join('')}
+          <tr class="total"><td>الإجمالي</td><td class="num">${tot.workdays}</td><td class="num">${tot.presentDays}</td><td class="num">${tot.absent}</td>
+          <td class="num">${tot.paidLeave}</td><td class="num">${tot.unpaid}</td><td class="num">${tot.missionDays}</td>
+          <td class="num">${tot.lateDays} <span class="muted small">${fmtDuration(tot.lateMinutes)}</span></td>
+          <td class="num">${fmtHours(tot.totalMinutes)}</td><td class="num">${fmtHours(tot.overtimeMinutes)}</td></tr></tbody></table>`
+      : `<div class="empty">لا توجد بيانات بعد.</div>`;
+  };
+
+  page.addEventListener('click', (ev) => onClick(ev).catch((err) => toast(err.message || 'حدث خطأ', 'bad')));
+
+  async function onClick(ev) {
+    const b = ev.target.closest('button');
+    if (!b) return;
+    const e = getState().engineers.find((x) => x.id === id);
+    if (b.dataset.act === 'edit') openHrModal(e);
+    if (b.dataset.act === 'raise') openRaiseModal(e);
+    if (b.dataset.act === 'leave') openLeaveModal(e);
+    if (b.dataset.act === 'xls') exportFile(e, months());
+    if (b.dataset.delSalary) {
+      if (await confirmDialog('حذف السطر', 'حذف هذا السطر من سجل الراتب؟', { confirmLabel: 'حذف', danger: true })) {
+        await deleteSalaryChange(b.dataset.delSalary);
+        refresh('hr');
+        toast('تم الحذف', 'ok');
+      }
+    }
+    if (b.dataset.delLeave) {
+      if (await confirmDialog('حذف الإجازة', 'حذف هذه الإجازة؟ سيعود رصيدها إلى الموظف.', { confirmLabel: 'حذف', danger: true })) {
+        await deleteLeave(b.dataset.delLeave);
+        refresh('hr');
+        toast('تم الحذف', 'ok');
+      }
+    }
+  }
+
+  const unsub = subscribe(() => {
+    draw();
+    if (!report && getState().ready.engineers && getState().ready.hr && !getState().hrMissing) loadReport();
+  });
+  draw();
+  if (getState().ready.engineers && getState().ready.hr && !getState().hrMissing) loadReport();
+  return unsub;
+}
+
+/* ---------------- pieces ---------------- */
+
+const fmtNum = (n) => (Math.round(Number(n || 0) * 100) / 100).toString();
+const kpi = (label, value, sub, kind = '') =>
+  `<div class="card kpi"><div class="label">${label}</div><div class="value ${kind}" style="font-size:22px">${value}</div>${sub ? `<div class="muted small">${sub}</div>` : ''}</div>`;
+const fact = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
+const bx = (label, v, kind = '') => `<div class="bx ${kind}"><span>${label}</span><b>${fmtNum(v)}</b></div>`;
+
+function lastRaise(sal) {
+  if (sal.length < 2) return sal.length ? 'لا توجد زيادات بعد' : '—';
+  const a = sal[sal.length - 2];
+  const b = sal[sal.length - 1];
+  const before = a.basicSalary + a.allowances;
+  const after = b.basicSalary + b.allowances;
+  const pct = before ? ` (${fmtNum(((after - before) / before) * 100)}%)` : '';
+  return `<span style="font-size:18px">${money(after - before)}${pct}</span><div class="muted small">في ${b.effectiveDate}</div>`;
+}
+
+function salaryTable(sal) {
+  if (!sal.length) return `<div class="empty">لم يُسجَّل راتب بعد — اضغط "تسجيل زيادة / تعديل راتب" وأدخل الراتب عند التعيين.</div>`;
+  return `<table class="t"><thead><tr><th>من تاريخ</th><th>الأساسي</th><th>البدلات</th><th>الإجمالي</th><th>التغيير</th><th>ملاحظة</th><th></th></tr></thead><tbody>${[...sal]
+    .reverse()
+    .map((s, i, arr) => {
+      const prev = arr[i + 1];
+      const total = s.basicSalary + s.allowances;
+      const ptotal = prev ? prev.basicSalary + prev.allowances : null;
+      const diff = prev ? total - ptotal : null;
+      return `<tr><td class="num ltr">${s.effectiveDate}</td><td class="num">${money(s.basicSalary)}</td><td class="num">${money(s.allowances)}</td>
+        <td class="num"><b>${money(total)}</b></td>
+        <td class="num">${diff == null ? badge('عند التعيين', 'info') : badge(`${diff >= 0 ? '+' : ''}${money(diff)}${ptotal ? ` (${fmtNum((diff / ptotal) * 100)}%)` : ''}`, diff >= 0 ? 'ok' : 'bad')}</td>
+        <td>${esc(s.note)}</td><td class="actions"><button class="btn sm ghost" data-del-salary="${esc(s.id)}" title="حذف">${icon('trash')}</button></td></tr>`;
+    })
+    .join('')}</tbody></table>`;
+}
+
+function leaveTable(lv) {
+  if (!lv.length) return `<div class="empty">لا توجد إجازات مسجلة.</div>`;
+  return `<table class="t"><thead><tr><th>النوع</th><th>من</th><th>إلى</th><th>الأيام</th><th>ملاحظة</th><th></th></tr></thead><tbody>${lv
+    .map((l) => `<tr><td>${badge(LEAVE_KINDS[l.kind]?.label || l.kind, l.kind === 'unpaid' ? 'warn' : LEAVE_KINDS[l.kind]?.fromBalance ? 'info' : '')}</td>
+      <td class="num ltr">${l.startDate}</td><td class="num ltr">${l.endDate}</td><td class="num">${fmtNum(l.days)}</td><td>${esc(l.note)}</td>
+      <td class="actions"><button class="btn sm ghost" data-del-leave="${esc(l.id)}" title="حذف">${icon('trash')}</button></td></tr>`)
+    .join('')}</tbody></table>`;
+}
+
+/* ---------------- modals ---------------- */
+
+function openHrModal(e) {
+  const hr = hrOf(e.id) || {};
+  modal({
+    title: `البيانات الوظيفية — ${e.name}`,
+    wide: true,
+    body: `
+      <div class="grid-2">
+        <div class="field"><label>الوظيفة</label><input class="input" name="jobTitle" value="${esc(hr.jobTitle || '')}" placeholder="مثال: مهندس مدني" /></div>
+        <div class="field"><label>تاريخ التعيين</label><input class="input ltr" type="date" name="hireDate" value="${esc(hr.hireDate || '')}" /></div>
+        <div class="field"><label>تاريخ الميلاد (اختياري — لرصيد الإجازات بعد سن 50)</label><input class="input ltr" type="date" name="birthDate" value="${esc(hr.birthDate || '')}" /></div>
+        <div class="field"><label>رصيد إجازات مرحَّل إلى هذا العام (يوم)</label><input class="input ltr" type="number" step="0.5" name="leaveOpening" value="${esc(hr.leaveOpening ?? 0)}" />
+          <span class="hint">بالسالب إذا استخدم أيامًا هذا العام قبل بدء النظام.</span></div>
+        <div class="field"><label>رصيد سنوي مخصص (اتركه فارغًا لتطبيق القانون)</label><input class="input ltr" type="number" step="0.5" name="leaveDaysOverride" value="${esc(hr.leaveDaysOverride ?? '')}" /></div>
+        <div class="field"><label>أجر الاشتراك التأميني (اتركه فارغًا = الأساسي + البدلات)</label><input class="input ltr" type="number" step="0.01" name="insuranceWage" value="${esc(hr.insuranceWage ?? '')}" /></div>
+      </div>
+      <div class="checks" style="margin:4px 0 14px">
+        <label class="check"><input type="checkbox" name="insured" ${hr.insured === false ? '' : 'checked'} /> مؤمَّن عليه</label>
+        <label class="check"><input type="checkbox" name="taxExempt" ${hr.taxExempt ? 'checked' : ''} /> معفى من ضريبة كسب العمل</label>
+      </div>
+      <div class="field"><label>ملاحظات</label><textarea class="input" name="notes" rows="2">${esc(hr.notes || '')}</textarea></div>`,
+    onSubmit: async (f) => {
+      const v = (n) => f[n].value.trim();
+      await saveHr(e.id, {
+        jobTitle: v('jobTitle'), hireDate: v('hireDate'), birthDate: v('birthDate'),
+        leaveOpening: Number(v('leaveOpening') || 0), leaveDaysOverride: v('leaveDaysOverride') === '' ? null : Number(v('leaveDaysOverride')),
+        insuranceWage: v('insuranceWage') === '' ? null : Number(v('insuranceWage')),
+        insured: f.insured.checked, taxExempt: f.taxExempt.checked, notes: v('notes'),
+      });
+      refresh('hr');
+      toast('تم الحفظ', 'ok');
+    },
+  });
+}
+
+function openRaiseModal(e) {
+  const sal = salariesOf(e.id);
+  const cur = salaryOn(sal, '9999-12-31');
+  const hr = hrOf(e.id) || {};
+  const first = !sal.length;
+  modal({
+    title: first ? `الراتب عند التعيين — ${e.name}` : `زيادة / تعديل راتب — ${e.name}`,
+    body: `
+      <div class="field"><label>${first ? 'تاريخ التعيين' : 'تاريخ سريان الراتب الجديد'}</label>
+        <input class="input ltr" type="date" name="date" value="${esc(first ? hr.hireDate || todayKey() : `${todayKey().slice(0, 8)}01`)}" required /></div>
+      <div class="grid-2">
+        <div class="field"><label>الراتب الأساسي</label><input class="input ltr" type="number" step="0.01" min="0" name="basic" value="${esc(cur?.basicSalary ?? '')}" required /></div>
+        <div class="field"><label>البدلات (انتقال، وجبات…)</label><input class="input ltr" type="number" step="0.01" min="0" name="allow" value="${esc(cur?.allowances ?? 0)}" /></div>
+      </div>
+      ${cur ? `<p class="muted small" style="margin:0 0 10px">الراتب الحالي: ${money(cur.basicSalary + cur.allowances)} — <span id="diff"></span></p>` : ''}
+      <div class="field"><label>ملاحظة</label><input class="input" name="note" placeholder="${first ? 'الراتب عند التعيين' : 'مثال: زيادة سنوية'}" /></div>`,
+    onOpen: (f) => {
+      const upd = () => {
+        const d = f.querySelector('#diff');
+        if (!d || !cur) return;
+        const now = Number(f.basic.value || 0) + Number(f.allow.value || 0);
+        const before = cur.basicSalary + cur.allowances;
+        d.textContent = `التغيير: ${now - before >= 0 ? '+' : ''}${money(now - before)}${before ? ` (${fmtNum(((now - before) / before) * 100)}%)` : ''}`;
+      };
+      f.basic.addEventListener('input', upd);
+      f.allow.addEventListener('input', upd);
+      upd();
+    },
+    onSubmit: async (f) => {
+      if (!f.date.value) throw new Error('حدد التاريخ.');
+      if (f.basic.value === '' || Number(f.basic.value) < 0) throw new Error('أدخل الراتب الأساسي.');
+      await addSalaryChange(e.id, {
+        effectiveDate: f.date.value, basicSalary: Number(f.basic.value), allowances: Number(f.allow.value || 0),
+        note: f.note.value.trim() || (first ? 'الراتب عند التعيين' : ''),
+      });
+      refresh('hr');
+      toast('تم تسجيل الراتب', 'ok');
+    },
+  });
+}
+
+function openLeaveModal(e) {
+  const today = todayKey();
+  const bal = leaveBalance(hrOf(e.id) || {}, leavesOf(e.id), today);
+  modal({
+    title: `تسجيل إجازة — ${e.name}`,
+    body: `
+      <div class="field"><label>نوع الإجازة</label><select class="input" name="kind">
+        ${Object.entries(LEAVE_KINDS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>
+        <span class="hint">الرصيد المتبقي: ${fmtNum(bal.remaining)} يوم. المرضية لا تُخصم من الرصيد، والإجازة بدون أجر تُخصم من الراتب.</span></div>
+      <div class="grid-2">
+        <div class="field"><label>من</label><input class="input ltr" type="date" name="from" value="${today}" required /></div>
+        <div class="field"><label>إلى</label><input class="input ltr" type="date" name="to" value="${today}" required /></div>
+      </div>
+      <div class="field"><label>عدد الأيام (أيام العمل فقط)</label><input class="input ltr" type="number" step="0.5" min="0" name="days" /></div>
+      <div class="field"><label>ملاحظة</label><input class="input" name="note" /></div>`,
+    onOpen: (f) => {
+      const calc = () => {
+        if (f.from.value && f.to.value && f.to.value >= f.from.value) {
+          f.days.value = workdaysBetween(f.from.value, f.to.value, getState().settings.workDays || []).length;
+        }
+      };
+      f.from.addEventListener('change', () => {
+        if (f.to.value < f.from.value) f.to.value = f.from.value;
+        calc();
+      });
+      f.to.addEventListener('change', calc);
+      calc();
+    },
+    onSubmit: async (f) => {
+      if (!f.from.value || !f.to.value || f.to.value < f.from.value) throw new Error('راجع التواريخ.');
+      const days = Number(f.days.value);
+      if (!(days >= 0)) throw new Error('أدخل عدد الأيام.');
+      if (LEAVE_KINDS[f.kind.value].fromBalance && days > bal.remaining) {
+        const ok = await confirmDialog('الرصيد لا يكفي', `الرصيد المتبقي ${fmtNum(bal.remaining)} يوم فقط. هل تريد التسجيل على أي حال؟`, { confirmLabel: 'تسجيل' });
+        if (!ok) return false;
+      }
+      await addLeave(e.id, { kind: f.kind.value, startDate: f.from.value, endDate: f.to.value, days, note: f.note.value.trim() });
+      refresh('hr');
+      toast('تم تسجيل الإجازة', 'ok');
+    },
+  });
+}
+
+function exportFile(e, list) {
+  if (!window.XLSX) return toast('مكتبة Excel لم تُحمّل، تأكد من الإنترنت', 'bad');
+  const hr = hrOf(e.id) || {};
+  const today = todayKey();
+  const bal = leaveBalance(hr, leavesOf(e.id), today);
+  const cur = salaryOn(salariesOf(e.id), today);
+  const info = [
+    { 'البند': 'الاسم', 'القيمة': e.name }, { 'البند': 'الكود', 'القيمة': e.code },
+    { 'البند': 'الوظيفة', 'القيمة': hr.jobTitle || '' }, { 'البند': 'تاريخ التعيين', 'القيمة': hr.hireDate || '' },
+    { 'البند': 'الراتب الأساسي الحالي', 'القيمة': cur?.basicSalary ?? '' }, { 'البند': 'البدلات الحالية', 'القيمة': cur?.allowances ?? '' },
+    { 'البند': `رصيد الإجازات المتبقي ${bal.year}`, 'القيمة': bal.remaining }, { 'البند': 'المستحق السنوي', 'القيمة': leaveEntitlement(hr, today) },
+  ];
+  const sal = salariesOf(e.id).map((s) => ({ 'من تاريخ': s.effectiveDate, 'الأساسي': s.basicSalary, 'البدلات': s.allowances, 'الإجمالي': s.basicSalary + s.allowances, 'ملاحظة': s.note }));
+  const lv = leavesOf(e.id).map((l) => ({ 'النوع': LEAVE_KINDS[l.kind]?.label || l.kind, 'من': l.startDate, 'إلى': l.endDate, 'الأيام': l.days, 'ملاحظة': l.note }));
+  const rep = list.map((r) => ({
+    'الشهر': monthLabel(r.m), 'أيام العمل': r.workdays, 'أيام الحضور': r.presentDays, 'الغياب': r.absent, 'إجازة مدفوعة': r.paidLeave,
+    'بدون أجر': r.unpaid, 'مأموريات': r.missionDays, 'أيام التأخير': r.lateDays, 'دقائق التأخير': r.lateMinutes,
+    'ساعات العمل': Number(fmtHours(r.totalMinutes)), 'ساعات إضافية': Number(fmtHours(r.overtimeMinutes)),
+  }));
+  const wb = XLSX.utils.book_new();
+  wb.Workbook = { Views: [{ RTL: true }] };
+  for (const [name, data] of [['البيانات', info], ['الراتب والزيادات', sal], ['الإجازات', lv], ['الحضور الشهري', rep]]) {
+    const ws = XLSX.utils.json_to_sheet(data.length ? data : [{ '': 'لا توجد بيانات' }]);
+    ws['!cols'] = Object.keys(data[0] || { a: 1 }).map((k) => ({ wch: Math.max(14, k.length + 6) }));
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  }
+  XLSX.writeFile(wb, `ملف_${e.code}_${today}.xlsx`);
+}
+
+return { money, monthLabel, serviceText, hrSettings, countFrom, render, openHrModal, openRaiseModal, openLeaveModal };
+})();
+
 // ===== js/pages/engineers.js =====
 const __m_js_pages_engineers = (() => {
-const { fn, updateEngineer } = __m_js_api;
-const { getState, subscribe, siteName, refresh } = __m_js_store;
-const { esc, $, badge, icon, modal, toast, confirmDialog, withBusy } = __m_js_ui;
+const { fn, updateEngineer, saveHr, addSalaryChange, attendanceRange, missionsBetween } = __m_js_api;
+const { getState, subscribe, refresh, hrOf, salariesOf, leavesOf } = __m_js_store;
+const { esc, $, badge, icon, modal, toast, confirmDialog, withBusy, todayKey, fmtHours } = __m_js_ui;
+const { leaveBalance, salaryOn, summarize } = __m_js_hr;
+const { hrSettings, countFrom, money } = __m_js_pages_employee;
+
+
 
 
 
 function render(page) {
   let filter = '';
+  let month = null; // this month's attendance, for hours / overtime
+  const today = todayKey();
+  const from = `${today.slice(0, 8)}01`;
+  Promise.all([attendanceRange(from, today), missionsBetween(from, today)])
+    .then(([rows, missions]) => {
+      month = { rows, missions };
+      draw();
+    })
+    .catch(() => {});
   page.innerHTML = `
     <section class="card">
       <div class="card-h">
@@ -1206,23 +2012,41 @@ function render(page) {
       $('#list', page).innerHTML = `<div class="empty">${engineers.length ? 'لا توجد نتائج.' : 'لا يوجد موظفون بعد — اضغط "موظف جديد".'}</div>`;
       return;
     }
-    $('#list', page).innerHTML = `<table class="t"><thead><tr>
-      <th>الموظف</th><th>الهاتف</th><th>المواقع المخصصة</th><th>مأموريات</th><th>الجهاز</th><th>الحالة</th><th></th>
+    const settings = hrSettings();
+    const stats = (e) => {
+      if (!month) return null;
+      return summarize({
+        from, to: today, today, startKey: countFrom(e, hrOf(e.id)),
+        rows: month.rows.filter((r) => r.uid === e.id), missions: month.missions.filter((m) => m.uid === e.id),
+        leaves: leavesOf(e.id), settings,
+      });
+    };
+    $('#list', page).innerHTML = `<table class="t emp"><thead><tr>
+      <th>الموظف</th><th>تاريخ التعيين</th><th>الراتب</th><th>ساعات العمل<br>هذا الشهر</th><th>الإضافي<br>هذا الشهر</th><th>رصيد الإجازات</th>
+      <th>الجهاز</th><th>الحالة</th><th></th>
     </tr></thead><tbody>${list
-      .map(
-        (e) => `<tr>
-        <td class="person"><b>${esc(e.name)}</b><span class="ltr">${esc(e.code)}</span></td>
-        <td class="num">${esc(e.phone || '—')}</td>
-        <td><div class="chips">${(e.siteIds || []).map((id) => badge(siteName(id), 'info')).join('') || '<span class="muted small">لا يوجد</span>'}</div></td>
-        <td>${e.missionsAllowed ? badge('مسموح', 'info') : '<span class="muted small">—</span>'}</td>
+      .map((e) => {
+        const hr = hrOf(e.id) || {};
+        const st = stats(e);
+        const sal = salaryOn(salariesOf(e.id), today);
+        const bal = leaveBalance(hr, leavesOf(e.id), today);
+        return `<tr>
+        <td class="person wide"><a href="#/employee?id=${esc(e.id)}"><b>${esc(e.name)}</b></a><span><span class="ltr">${esc(e.code)}</span>${hr.jobTitle ? ` · ${esc(hr.jobTitle)}` : ''}${e.missionsAllowed ? ` · ${badge('مأموريات', 'info')}` : ''}</span></td>
+        <td class="num ltr">${hr.hireDate ? esc(hr.hireDate) : '<span class="muted small">—</span>'}</td>
+        <td class="num">${sal ? money(sal.basicSalary + sal.allowances) : '<span class="muted small">—</span>'}</td>
+        <td class="num">${st ? fmtHours(st.totalMinutes) : '…'}</td>
+        <td class="num">${st ? (st.overtimeMinutes ? badge(fmtHours(st.overtimeMinutes), 'info') : '0.00') : '…'}</td>
+        <td class="num">${badge(`${bal.remaining} يوم`, bal.remaining < 0 ? 'bad' : bal.remaining <= 3 ? 'warn' : 'ok')}</td>
+
         <td>${e.deviceId ? `${badge('مربوط', 'ok')} <button class="btn sm ghost" data-unbind="${esc(e.id)}" title="فك ربط الهاتف">${icon('phone')}</button>` : badge('غير مربوط', '')}</td>
         <td>${e.active ? badge('نشط', 'ok') : badge('موقوف', 'bad')}</td>
         <td class="actions">
-          <button class="btn sm" data-edit="${esc(e.id)}">${icon('edit')} تعديل</button>
+          <a class="btn sm primary" href="#/employee?id=${esc(e.id)}">${icon('file')} الملف</a>
+          <button class="btn sm" data-edit="${esc(e.id)}" title="تعديل">${icon('edit')}</button>
           <button class="btn sm" data-pass="${esc(e.id)}" title="تغيير كلمة المرور">${icon('key')}</button>
           <button class="btn sm ${e.active ? 'danger' : ''}" data-toggle="${esc(e.id)}">${e.active ? 'إيقاف' : 'تفعيل'}</button>
-        </td></tr>`
-      )
+        </td></tr>`;
+      })
       .join('')}</tbody></table>`;
   };
 
@@ -1329,6 +2153,12 @@ function openEngineerModal(eng) {
         <div class="row"><input class="input ltr" name="password" style="flex:1" value="${genPassword()}" />
         <button type="button" class="btn" data-gen>توليد</button></div>
         <span class="hint">انسخها وأرسلها إلى الموظف مع الكود.</span></div>`}
+      ${isEdit ? '' : `<div class="grid-2">
+        <div class="field"><label>الوظيفة</label><input class="input" name="jobTitle" placeholder="مثال: مهندس مدني" /></div>
+        <div class="field"><label>تاريخ التعيين</label><input class="input ltr" type="date" name="hireDate" /></div>
+        <div class="field"><label>الراتب الأساسي</label><input class="input ltr" type="number" step="0.01" min="0" name="basic" /></div>
+        <div class="field"><label>البدلات</label><input class="input ltr" type="number" step="0.01" min="0" name="allow" /></div>
+      </div>`}
       <div class="field"><label>المواقع المسموح له بالتسجيل فيها</label>${sitesChecklist(e.siteIds || [])}</div>
       <label class="check"><input type="checkbox" name="missions" ${e.missionsAllowed ? 'checked' : ''} />
         مسموح له بطلب مأموريات (للإداريين الذين يخرجون في مهام عمل)</label>`,
@@ -1352,6 +2182,22 @@ function openEngineerModal(eng) {
       const password = form.password.value;
       const created = await fn('createEngineer', { name, code, phone, password, siteIds });
       if (missionsAllowed && created?.uid) await updateEngineer(created.uid, { missionsAllowed: true });
+      if (created?.uid) {
+        const jobTitle = form.jobTitle.value.trim();
+        const hireDate = form.hireDate.value;
+        try {
+          if (jobTitle || hireDate) await saveHr(created.uid, { jobTitle, hireDate });
+          if (form.basic.value !== '') {
+            await addSalaryChange(created.uid, {
+              effectiveDate: hireDate || todayKey(), basicSalary: Number(form.basic.value), allowances: Number(form.allow.value || 0),
+              note: 'الراتب عند التعيين',
+            });
+          }
+          refresh('hr');
+        } catch (err) {
+          toast(`أُنشئ الحساب، لكن تعذّر حفظ البيانات الوظيفية: ${err.message}`, 'bad');
+        }
+      }
       refresh('engineers');
       // Show credentials once so the admin can send them.
       modal({
@@ -1781,6 +2627,311 @@ function compute(rows, from, to, engFilter, siteFilter) {
 return { render, compute };
 })();
 
+// ===== js/pages/payroll.js =====
+const __m_js_pages_payroll = (() => {
+const { attendanceRange, missionsBetween, listAdjustments, saveAdjustment, savePayrollSettings } = __m_js_api;
+const { getState, subscribe, hrOf, salariesOf, leavesOf, refresh } = __m_js_store;
+const { esc, $, badge, icon, modal, toast, todayKey, withBusy } = __m_js_ui;
+const { summarize, payrollLine, monthStart, monthEnd, addDays, minKey } = __m_js_hr;
+const { money, monthLabel, hrSettings, countFrom, openRaiseModal } = __m_js_pages_employee;
+// Monthly payroll: salary + overtime − attendance deductions − insurance − tax, with payslips and Excel export.
+
+
+
+
+
+function render(page) {
+  const today = todayKey();
+  let month = today.slice(0, 7);
+  let data = null; // { rows, missions, adj }
+  let lines = [];
+
+  const monthOptions = () => {
+    const out = [];
+    let m = today.slice(0, 7);
+    for (let i = 0; i < 18; i++) {
+      out.push(m);
+      m = addDays(monthStart(m), -1).slice(0, 7);
+    }
+    return out;
+  };
+
+  page.innerHTML = `
+    <section class="card"><div class="card-b">
+      <div class="filters">
+        <div class="field"><label>الشهر</label><select class="input" id="month">${monthOptions().map((m) => `<option value="${m}">${monthLabel(m)}</option>`).join('')}</select></div>
+        <div class="row" style="padding-bottom:2px">
+          <button class="btn" id="xls">${icon('download')} تصدير Excel</button>
+          <button class="btn" id="ps">${icon('settings')} إعدادات الرواتب</button>
+        </div>
+      </div>
+      <div id="warn"></div>
+    </div></section>
+    <section class="kpis pay-kpis" id="kpis"></section>
+    <section class="card"><div class="card-h"><h3 id="title">كشف الرواتب</h3><span class="muted small">اضغط اسم الموظف لعرض القسيمة</span></div>
+      <div class="card-b flush table-wrap" id="table"><div class="empty"><span class="spinner"></span></div></div></section>
+    <div class="notice small" id="rules"></div>`;
+
+  const load = async () => {
+    const from = monthStart(month);
+    const to = monthEnd(month);
+    $('#table', page).innerHTML = `<div class="empty"><span class="spinner"></span></div>`;
+    try {
+      const [rows, missions, adj] = await Promise.all([attendanceRange(from, to), missionsBetween(from, to), listAdjustments(month)]);
+      data = { rows, missions, adj, month };
+      draw();
+    } catch (err) {
+      $('#table', page).innerHTML = `<div class="empty">${esc(err.message)}</div>`;
+    }
+  };
+
+  const compute = () => {
+    const { engineers, payrollSettings: ps } = getState();
+    const settings = hrSettings();
+    const from = monthStart(month);
+    const to = monthEnd(month);
+    return engineers
+      .filter((e) => e.active || data.rows.some((r) => r.uid === e.id))
+      .map((e) => {
+        const hr = hrOf(e.id) || {};
+        const att = summarize({
+          from, to, today, startKey: countFrom(e, hr),
+          rows: data.rows.filter((r) => r.uid === e.id), missions: data.missions.filter((m) => m.uid === e.id),
+          leaves: leavesOf(e.id), settings,
+        });
+        const adj = data.adj.find((a) => a.uid === e.id) || { bonus: 0, deduction: 0, advance: 0, note: '' };
+        return { e, hr, att, adj, p: payrollLine({ m: month, hr, changes: salariesOf(e.id), att, adj, ps, settings }) };
+      })
+      .sort((a, b) => String(a.e.code).localeCompare(String(b.e.code)));
+  };
+
+  const draw = () => {
+    const st = getState();
+    if (!st.ready.engineers || !st.ready.hr || !data || data.month !== month) return;
+    if (st.hrMissing) {
+      $('#table', page).innerHTML = `<div class="notice warn" style="margin:16px">جداول الرواتب لم تُفعَّل بعد في قاعدة البيانات.</div>`;
+      return;
+    }
+    lines = compute();
+    const ps = st.payrollSettings;
+    const partial = month === today.slice(0, 7);
+    $('#title', page).textContent = `كشف رواتب ${monthLabel(month)}${partial ? ' (حتى اليوم)' : ''}`;
+    const missing = lines.filter((l) => !l.p.hasSalary);
+    $('#warn', page).innerHTML = missing.length
+      ? `<div class="notice warn" style="margin-top:12px">لم يُسجَّل راتب لـ: ${missing.map((l) => `<a href="#" data-salary="${esc(l.e.id)}">${esc(l.e.name)}</a>`).join('، ')} — اضغط الاسم لإدخال الراتب.</div>`
+      : partial ? `<div class="notice" style="margin-top:12px">الشهر لم ينتهِ بعد: الغياب والإضافي محسوبان حتى اليوم فقط.</div>` : '';
+
+    const sum = (k) => lines.reduce((a, l) => a + (l.p[k] || 0), 0);
+    $('#kpis', page).innerHTML = [
+      kpi('إجمالي المستحقات', money(sum('gross'))),
+      kpi('الإضافي', money(sum('otPay'))),
+      kpi('خصومات الحضور', money(sum('attendanceDed'))),
+      kpi('تأمينات + ضرائب', money(sum('insurance') + sum('tax') + sum('martyrs'))),
+      kpi('صافي الرواتب', money(sum('net')), 'brand'),
+    ].join('');
+
+    $('#table', page).innerHTML = lines.length
+      ? `<table class="t pay"><thead><tr>
+          <th>الموظف</th><th>الراتب</th><th>المستحق</th><th>إضافي</th><th>مكافأة</th><th>غياب / تأخير</th>
+          <th>تأمينات</th><th>ضريبة</th><th>سلف وخصومات</th><th>الصافي</th><th></th>
+        </tr></thead><tbody>${lines.map((l) => row(l)).join('')}
+        <tr class="total"><td>الإجمالي (${lines.length})</td><td class="num">${money(sum('full'))}</td><td class="num">${money(sum('earned'))}</td>
+          <td class="num">${money(sum('otPay'))}</td><td class="num">${money(sum('bonus'))}</td><td class="num">${money(sum('attendanceDed'))}</td>
+          <td class="num">${money(sum('insurance'))}</td><td class="num">${money(sum('tax') + sum('martyrs'))}</td>
+          <td class="num">${money(sum('otherDed') + sum('advance'))}</td><td class="num"><b>${money(sum('net'))}</b></td><td></td></tr>
+        </tbody></table>`
+      : `<div class="empty">لا يوجد موظفون.</div>`;
+
+    $('#rules', page).innerHTML = `طريقة الحساب: أجر اليوم = (الأساسي + البدلات) ÷ ${ps.dayDivisor}، وأجر الساعة = أجر اليوم ÷ ${fmt((hrSettings().workEndMin - hrSettings().workStartMin) / 60)} ساعات.
+      الإضافي = ساعات العمل الزائدة على الدوام وساعات أيام الإجازة × أجر الساعة × ${ps.otMultiplier}.
+      ${ps.deductAbsence ? 'يوم الغياب يُخصم بأجر يوم، ' : ''}${ps.deductLate ? `والتأخير يُخصم بالدقيقة بعد سماحية ${getState().settings.graceMinutes} دقيقة، ` : ''}والإجازة بدون أجر تُخصم بأجر يوم.
+      التأمينات ${ps.insuranceEnabled ? `${ps.insuranceRate}% من أجر الاشتراك (بين ${money(ps.insuranceMin)} و${money(ps.insuranceMax)})` : 'غير مفعّلة'}،
+      وضريبة كسب العمل ${ps.taxEnabled ? `بالشرائح السنوية بعد إعفاء شخصي ${money(ps.taxPersonalExemption)} سنويًا` : 'غير مفعّلة'}${Number(ps.martyrsRate) ? `، وصندوق الشهداء ${ps.martyrsRate}%` : ''}.
+      راجع الأرقام قبل الصرف، ويمكن تعديل النسب من "إعدادات الرواتب".`;
+  };
+
+  const row = ({ e, p, adj }) => `<tr>
+    <td class="person wide"><a href="#" data-slip="${esc(e.id)}"><b>${esc(e.name)}</b></a><span class="ltr">${esc(e.code)}</span>${p.hasSalary ? '' : ` ${badge('بدون راتب', 'warn')}`}</td>
+    <td class="num">${money(p.full)}</td>
+    <td class="num">${money(p.earned)}${p.payDays < p.dim ? `<div class="muted small" dir="rtl">${p.payDays} من ${p.dim} يوم</div>` : ''}</td>
+    <td class="num">${p.otPay ? `${money(p.otPay)}<div class="muted small" dir="rtl">${fmt(p.otHours)} ساعة</div>` : '—'}</td>
+    <td class="num">${p.bonus ? money(p.bonus) : '—'}</td>
+    <td class="num">${p.attendanceDed ? `<span class="neg">${money(p.attendanceDed)}</span><div class="muted small" dir="rtl">${[p.absent ? `${p.absent} غياب` : '', p.unpaid ? `${p.unpaid} بدون أجر` : '', p.lateMinutes ? `${p.lateMinutes} د تأخير` : ''].filter(Boolean).join(' · ')}</div>` : '—'}</td>
+    <td class="num">${p.insurance ? money(p.insurance) : '—'}</td>
+    <td class="num">${p.tax + p.martyrs ? money(p.tax + p.martyrs) : '—'}</td>
+    <td class="num">${p.otherDed + p.advance ? money(p.otherDed + p.advance) : '—'}</td>
+    <td class="num"><b>${money(p.net)}</b></td>
+    <td class="actions"><button class="btn sm" data-adj="${esc(e.id)}" title="مكافأة / خصم / سلفة">${icon('edit')}${adj.note ? ' •' : ''}</button></td></tr>`;
+
+  page.addEventListener('click', (ev) => {
+    const a = ev.target.closest('[data-slip],[data-adj],[data-salary]');
+    if (!a) return;
+    ev.preventDefault();
+    const find = (id) => lines.find((l) => l.e.id === id);
+    if (a.dataset.slip) payslip(find(a.dataset.slip), month);
+    if (a.dataset.adj) adjust(find(a.dataset.adj));
+    if (a.dataset.salary) openRaiseModal(getState().engineers.find((x) => x.id === a.dataset.salary));
+  });
+
+  const adjust = (l) => {
+    modal({
+      title: `مكافأة / خصم / سلفة — ${l.e.name} (${monthLabel(month)})`,
+      body: `
+        <div class="grid-3">
+          <div class="field"><label>مكافأة / حافز</label><input class="input ltr" type="number" step="0.01" min="0" name="bonus" value="${esc(l.adj.bonus || '')}" /></div>
+          <div class="field"><label>خصم (جزاء…)</label><input class="input ltr" type="number" step="0.01" min="0" name="deduction" value="${esc(l.adj.deduction || '')}" /></div>
+          <div class="field"><label>سلفة</label><input class="input ltr" type="number" step="0.01" min="0" name="advance" value="${esc(l.adj.advance || '')}" /></div>
+        </div>
+        <div class="field"><label>ملاحظة</label><input class="input" name="note" value="${esc(l.adj.note || '')}" /></div>`,
+      onSubmit: async (f) => {
+        await saveAdjustment(l.e.id, month, {
+          bonus: Number(f.bonus.value || 0), deduction: Number(f.deduction.value || 0), advance: Number(f.advance.value || 0), note: f.note.value.trim(),
+        });
+        data.adj = await listAdjustments(month);
+        draw();
+        toast('تم الحفظ', 'ok');
+      },
+    });
+  };
+
+  $('#month', page).addEventListener('change', (e) => {
+    month = e.target.value;
+    load();
+  });
+  $('#ps', page).addEventListener('click', () => settingsModal());
+  $('#xls', page).addEventListener('click', () => exportExcel(lines, month));
+
+  const unsub = subscribe(draw);
+  load();
+  return unsub;
+}
+
+/* ---------------- pieces ---------------- */
+
+const fmt = (n) => (Math.round(Number(n || 0) * 100) / 100).toString();
+const kpi = (label, value, kind = '') =>
+  `<div class="card kpi ${kind}"><div class="label">${label}</div><div class="value" style="font-size:22px">${value}</div></div>`;
+
+function payslip(l, month) {
+  const { e, hr, p, att, adj } = l;
+  const line = (k, v, cls = '') => `<tr class="${cls}"><td>${k}</td><td class="num">${v}</td></tr>`;
+  const company = getState().settings.companyName || '';
+  modal({
+    title: `قسيمة راتب — ${monthLabel(month)}`,
+    wide: true,
+    hideFooter: false,
+    body: `
+      <div class="slip" id="slip">
+        <div class="slip-h"><img src="logo-full.png" alt="" onerror="this.remove()" /><div><b>${esc(company)}</b><div class="muted small">قسيمة راتب ${monthLabel(month)}</div></div></div>
+        <dl class="facts">
+          <div><dt>الاسم</dt><dd>${esc(e.name)}</dd></div><div><dt>الكود</dt><dd class="ltr">${esc(e.code)}</dd></div>
+          <div><dt>الوظيفة</dt><dd>${esc(hr.jobTitle || '—')}</dd></div><div><dt>تاريخ التعيين</dt><dd class="ltr">${esc(hr.hireDate || '—')}</dd></div>
+          <div><dt>أيام الحضور</dt><dd>${att.presentDays} من ${att.workdays} يوم عمل</dd></div><div><dt>ساعات الإضافي</dt><dd>${fmt(p.otHours)}</dd></div>
+        </dl>
+        <div class="grid-2 slip-cols">
+          <table class="t"><thead><tr><th>المستحقات</th><th></th></tr></thead><tbody>
+            ${line('الراتب الأساسي', money(p.basic))}
+            ${line('البدلات', money(p.allowances))}
+            ${p.payDays < p.dim ? line(`عن ${p.payDays} من ${p.dim} يوم (التعيين خلال الشهر)`, money(p.earned)) : ''}
+            ${line(`الإضافي (${fmt(p.otHours)} ساعة)`, money(p.otPay))}
+            ${line('مكافأة / حافز', money(p.bonus))}
+            ${line('إجمالي المستحقات', money(p.gross), 'total')}
+          </tbody></table>
+          <table class="t"><thead><tr><th>الاستقطاعات</th><th></th></tr></thead><tbody>
+            ${line(`غياب (${p.absent} يوم)`, money(p.absenceDed))}
+            ${line(`إجازة بدون أجر (${p.unpaid} يوم)`, money(p.unpaidDed))}
+            ${line(`تأخير (${p.lateMinutes} دقيقة)`, money(p.lateDed))}
+            ${line(`تأمينات اجتماعية${p.insWage ? ` (على ${money(p.insWage)})` : ''}`, money(p.insurance))}
+            ${line('ضريبة كسب العمل', money(p.tax))}
+            ${p.martyrs ? line('صندوق الشهداء', money(p.martyrs)) : ''}
+            ${line('خصومات أخرى', money(p.otherDed))}
+            ${line('سلف', money(p.advance))}
+            ${line('إجمالي الاستقطاعات', money(p.totalDed), 'total')}
+          </tbody></table>
+        </div>
+        <div class="slip-net"><span>صافي الراتب</span><b>${money(p.net)}</b></div>
+        ${adj.note ? `<p class="muted small">ملاحظة: ${esc(adj.note)}</p>` : ''}
+      </div>`,
+    submitLabel: 'طباعة',
+    cancelLabel: 'إغلاق',
+    onSubmit: () => {
+      const w = window.open('', '_blank');
+      if (!w) return toast('اسمح بالنوافذ المنبثقة للطباعة', 'bad');
+      w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>قسيمة ${esc(e.name)}</title>
+        <base href="${location.href.split('#')[0]}"><style>${printCss}</style></head><body>${document.getElementById('slip').outerHTML}</body></html>`);
+      w.document.close();
+      setTimeout(() => w.print(), 400);
+      return false;
+    },
+  });
+}
+
+const printCss = `body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;color:#18212b;margin:24px}
+.slip-h{display:flex;gap:14px;align-items:center;border-bottom:2px solid #0f3b5f;padding-bottom:10px;margin-bottom:12px}.slip-h img{height:48px}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;margin:0 0 14px}.facts dt{color:#6b7682;font-size:12px}.facts dd{margin:0;font-weight:600}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}table{width:100%;border-collapse:collapse}th,td{padding:7px 10px;border-bottom:1px solid #e3e7ec;text-align:right}
+th{background:#f8f9fb;font-size:12px}.num{text-align:left;font-variant-numeric:tabular-nums}.total td{font-weight:700;border-top:2px solid #18212b}
+.slip-net{display:flex;justify-content:space-between;margin-top:16px;padding:12px 16px;background:#0f3b5f;color:#fff;border-radius:8px;font-size:18px}.muted{color:#6b7682}.small{font-size:12px}.ltr{direction:ltr;unicode-bidi:embed}`;
+
+function settingsModal() {
+  const ps = getState().payrollSettings;
+  modal({
+    title: 'إعدادات الرواتب',
+    wide: true,
+    body: `
+      <div class="grid-3">
+        <div class="field"><label>معامل الإضافي</label><input class="input ltr" type="number" step="0.05" min="1" name="otMultiplier" value="${ps.otMultiplier}" /><span class="hint">1.5 = الساعة ونصف</span></div>
+        <div class="field"><label>قسمة أجر اليوم على</label><input class="input ltr" type="number" min="20" max="31" name="dayDivisor" value="${ps.dayDivisor}" /><span class="hint">30 يومًا عادةً</span></div>
+        <div class="field"><label>نسبة تأمينات الموظف %</label><input class="input ltr" type="number" step="0.01" name="insuranceRate" value="${ps.insuranceRate}" /></div>
+        <div class="field"><label>الحد الأدنى لأجر الاشتراك</label><input class="input ltr" type="number" step="0.01" name="insuranceMin" value="${ps.insuranceMin}" /></div>
+        <div class="field"><label>الحد الأقصى لأجر الاشتراك</label><input class="input ltr" type="number" step="0.01" name="insuranceMax" value="${ps.insuranceMax}" /></div>
+        <div class="field"><label>الإعفاء الشخصي السنوي (ضريبة)</label><input class="input ltr" type="number" step="0.01" name="taxPersonalExemption" value="${ps.taxPersonalExemption}" /></div>
+        <div class="field"><label>صندوق الشهداء %</label><input class="input ltr" type="number" step="0.001" name="martyrsRate" value="${ps.martyrsRate}" /><span class="hint">0 لإيقافه</span></div>
+      </div>
+      <div class="checks">
+        <label class="check"><input type="checkbox" name="deductAbsence" ${ps.deductAbsence ? 'checked' : ''} /> خصم الغياب</label>
+        <label class="check"><input type="checkbox" name="deductLate" ${ps.deductLate ? 'checked' : ''} /> خصم التأخير</label>
+        <label class="check"><input type="checkbox" name="insuranceEnabled" ${ps.insuranceEnabled ? 'checked' : ''} /> احتساب التأمينات</label>
+        <label class="check"><input type="checkbox" name="taxEnabled" ${ps.taxEnabled ? 'checked' : ''} /> احتساب ضريبة كسب العمل</label>
+      </div>
+      <p class="muted small">القيم الافتراضية: حدود أجر الاشتراك لعام 2026 (2,700 – 16,700)، وشرائح الضريبة وفق القانون 7 لسنة 2024. مواعيد الدوام وسماحية التأخير من صفحة الإعدادات.</p>`,
+    onSubmit: async (f) => {
+      const n = (k) => Number(f[k].value);
+      await savePayrollSettings({
+        otMultiplier: n('otMultiplier'), dayDivisor: n('dayDivisor'), insuranceRate: n('insuranceRate'), insuranceMin: n('insuranceMin'),
+        insuranceMax: n('insuranceMax'), taxPersonalExemption: n('taxPersonalExemption'), martyrsRate: n('martyrsRate'),
+        deductAbsence: f.deductAbsence.checked, deductLate: f.deductLate.checked, insuranceEnabled: f.insuranceEnabled.checked, taxEnabled: f.taxEnabled.checked,
+      });
+      refresh('hr');
+      toast('تم حفظ إعدادات الرواتب', 'ok');
+    },
+  });
+}
+
+function exportExcel(lines, month) {
+  if (!window.XLSX) return toast('مكتبة Excel لم تُحمّل، تأكد من الإنترنت', 'bad');
+  if (!lines.length) return;
+  const rows = lines.map(({ e, hr, p, adj }) => ({
+    'الكود': e.code, 'الاسم': e.name, 'الوظيفة': hr.jobTitle || '', 'الأساسي': p.basic, 'البدلات': p.allowances,
+    'أيام الاستحقاق': p.payDays, 'المستحق': p.earned, 'ساعات إضافية': p.otHours, 'قيمة الإضافي': p.otPay, 'مكافأة': p.bonus,
+    'إجمالي المستحقات': p.gross, 'أيام الغياب': p.absent, 'خصم الغياب': p.absenceDed, 'أيام بدون أجر': p.unpaid,
+    'خصم بدون أجر': p.unpaidDed, 'دقائق التأخير': p.lateMinutes, 'خصم التأخير': p.lateDed, 'أجر الاشتراك': p.insWage,
+    'التأمينات': p.insurance, 'ضريبة كسب العمل': p.tax, 'صندوق الشهداء': p.martyrs, 'خصومات أخرى': p.otherDed, 'سلف': p.advance,
+    'إجمالي الاستقطاعات': p.totalDed, 'الصافي': p.net, 'ملاحظة': adj.note || '',
+  }));
+  const totals = { 'الكود': '', 'الاسم': 'الإجمالي' };
+  for (const k of Object.keys(rows[0])) if (typeof rows[0][k] === 'number' && k !== 'أيام الاستحقاق') totals[k] = Math.round(rows.reduce((a, r) => a + r[k], 0) * 100) / 100;
+  const wb = XLSX.utils.book_new();
+  wb.Workbook = { Views: [{ RTL: true }] };
+  const ws = XLSX.utils.json_to_sheet([...rows, totals]);
+  ws['!cols'] = Object.keys(rows[0]).map((k) => ({ wch: Math.max(12, k.length + 4) }));
+  XLSX.utils.book_append_sheet(wb, ws, 'كشف الرواتب');
+  XLSX.writeFile(wb, `كشف_رواتب_${month}.xlsx`);
+}
+
+return { render };
+})();
+
 // ===== js/pages/security.js =====
 const __m_js_pages_security = (() => {
 const { listAttempts, watch } = __m_js_api;
@@ -2024,8 +3175,12 @@ const sites = __m_js_pages_sites;
 const engineers = __m_js_pages_engineers;
 const missions = __m_js_pages_missions;
 const reports = __m_js_pages_reports;
+const payroll = __m_js_pages_payroll;
+const employee = __m_js_pages_employee;
 const security = __m_js_pages_security;
 const settings = __m_js_pages_settings;
+
+
 
 
 
@@ -2042,6 +3197,8 @@ const ROUTES = {
   engineers: { title: 'الموظفين', icon: 'users', page: engineers },
   missions: { title: 'المأموريات', icon: 'car', page: missions },
   reports: { title: 'التقارير', icon: 'report', page: reports },
+  payroll: { title: 'الرواتب', icon: 'money', page: payroll },
+  employee: { title: 'ملف الموظف', icon: 'users', page: employee, hidden: true, parent: 'engineers' },
   security: { title: 'سجل الأمان', icon: 'shield', page: security },
   settings: { title: 'الإعدادات', icon: 'settings', page: settings },
 };
@@ -2145,6 +3302,7 @@ function renderShell(user) {
         <div class="brand">${brandMark}<div><b>نظام الحضور والانصراف</b><span id="companyName"></span></div></div>
         <nav class="nav">
           ${Object.entries(ROUTES)
+            .filter(([, r]) => !r.hidden)
             .map(([k, r]) => `<a href="#/${k}" data-route="${k}">${icon(r.icon)}<span>${r.title}</span>${k === 'missions' ? '<b class="count" id="missionsCount"></b>' : ''}</a>`)
             .join('')}
         </nav>
@@ -2175,7 +3333,7 @@ function route() {
   if (!currentUser || !$('#page')) return;
   const key = (location.hash.replace(/^#\/?/, '') || 'today').split('?')[0];
   const r = ROUTES[key] || ROUTES.today;
-  document.querySelectorAll('.nav a').forEach((a) => a.classList.toggle('active', a.dataset.route === key));
+  document.querySelectorAll('.nav a').forEach((a) => a.classList.toggle('active', a.dataset.route === (r.parent || key)));
   $('#pageTitle').textContent = r.title;
   document.title = `${r.title} — نظام الحضور`;
   if (typeof cleanup === 'function') cleanup();
