@@ -297,16 +297,23 @@ table.pay td.num { white-space: nowrap; }
 table.t .person.wide { min-width: 230px; }
 table.emp td.num, table.emp td.actions { white-space: nowrap; }
 table.emp th { white-space: normal; line-height: 1.3; }
-.dept-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
-.dept { text-align: right; font: inherit; color: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 2px;
-  padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
-.dept:hover { border-color: var(--brand); }
-.dept.on { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); background: var(--info-bg); }
-.dept .dn { font-weight: 600; }
-.dept b { font-size: 24px; font-variant-numeric: tabular-nums; }
-.dept .dj { font-size: 12px; color: var(--muted); }
-.dept.total { cursor: default; background: var(--brand); color: #fff; border-color: var(--brand); }
-.dept.total .dn { color: var(--brand-ink); }
+.dept-tree { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; align-items: start; }
+.dept-main { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); overflow: hidden; }
+.dept-main.on { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); }
+.dept-main .dm { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 14px;
+  font: inherit; font-weight: 700; color: inherit; background: none; border: 0; cursor: pointer; text-align: right; }
+.dept-main .dm b { font-size: 24px; font-variant-numeric: tabular-nums; }
+.dept-subs { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.dept-subs .ds { display: flex; justify-content: space-between; padding: 8px 14px; font: inherit; color: inherit; background: var(--surface);
+  border: 0; border-bottom: 1px solid var(--line); cursor: pointer; text-align: right; }
+.dept-subs .ds:last-child { border-bottom: 0; }
+.dept-subs .ds:hover, .dept-main .dm:hover { background: var(--info-bg); }
+.dept-subs .ds.on { background: var(--info-bg); color: var(--info); font-weight: 600; }
+.dept-subs .ds.zero { color: var(--muted); }
+.dept-subs .ds b { font-variant-numeric: tabular-nums; }
+.dept-main.total { background: var(--brand); border-color: var(--brand); color: #fff; }
+.dept-main.total .dm { cursor: default; }
+.dept-main.total .dm:hover { background: none; }
 table.emp td.job { min-width: 150px; }
 table.emp td.job .badge { margin-top: 4px; }
 </style>
@@ -506,7 +513,7 @@ async function pendingMissionsCount() {
 const num = (v) => (v == null || v === '' ? null : Number(v));
 
 const mapHr = (r) => ({
-  uid: r.uid, jobTitle: r.job_title || '', department: r.department || '', hireDate: r.hire_date, birthDate: r.birth_date, insured: r.insured !== false,
+  uid: r.uid, jobTitle: r.job_title || '', department: r.department || '', section: r.section || '', hireDate: r.hire_date, birthDate: r.birth_date, insured: r.insured !== false,
   insuranceWage: num(r.insurance_wage), taxExempt: r.tax_exempt === true, leaveOpening: Number(r.leave_opening || 0),
   leaveDaysOverride: num(r.leave_days_override), notes: r.notes || '',
 });
@@ -547,7 +554,7 @@ async function loadHr() {
 
 async function saveHr(uid, o) {
   const row = {
-    uid, job_title: o.jobTitle ?? '', department: o.department ?? '', hire_date: o.hireDate || null, birth_date: o.birthDate || null,
+    uid, job_title: o.jobTitle ?? '', department: o.department ?? '', section: o.section ?? '', hire_date: o.hireDate || null, birth_date: o.birthDate || null,
     insured: o.insured !== false, insurance_wage: o.insuranceWage || null, tax_exempt: o.taxExempt === true,
     leave_opening: Number(o.leaveOpening || 0), leave_days_override: o.leaveDaysOverride ?? null, notes: o.notes ?? '',
     updated_at: new Date().toISOString(),
@@ -1632,7 +1639,7 @@ function render(page) {
     $('#body', page).innerHTML = `
       <section class="card"><div class="card-h">
         <div class="person"><b style="font-size:18px">${esc(e.name)}</b>
-          <span><span class="ltr">${esc(e.code)}</span> · ${esc(hr.jobTitle || 'لم تُحدَّد الوظيفة')}${hr.department ? ` · ${esc(hr.department)}` : ''} · ${e.active ? 'نشط' : 'موقوف'}</span></div>
+          <span><span class="ltr">${esc(e.code)}</span> · ${esc(hr.jobTitle || 'لم تُحدَّد الوظيفة')}${deptLabel(hr) ? ` · ${esc(deptLabel(hr))}` : ''} · ${e.active ? 'نشط' : 'موقوف'}</span></div>
         <div class="row">
           <a class="btn" href="#/engineers">رجوع</a>
           <button class="btn primary" data-act="edit">${icon('edit')} البيانات الوظيفية</button>
@@ -1649,7 +1656,8 @@ function render(page) {
       <section class="card"><div class="card-h"><h3>البيانات الوظيفية</h3></div>
         <div class="card-b"><dl class="facts">
           ${fact('الوظيفة', esc(hr.jobTitle || '—'))}
-          ${fact('القسم', esc(hr.department || '—'))}
+          ${fact('الإدارة', esc(hr.department || '—'))}
+          ${fact('القسم', esc(hr.section || '—'))}
           ${fact('تاريخ التعيين', hr.hireDate ? `<span class="ltr">${hr.hireDate}</span>` : '—')}
           ${fact('تاريخ الميلاد', hr.birthDate ? `<span class="ltr">${hr.birthDate}</span>` : '—')}
           ${fact('الهاتف', esc(e.phone || '—'))}
@@ -1833,10 +1841,12 @@ function openHrModal(e) {
   modal({
     title: `البيانات الوظيفية — ${e.name}`,
     wide: true,
+    onOpen: (f) => wireDeptFields(f),
     body: `
       <div class="grid-2">
         <div class="field"><label>الوظيفة</label><input class="input" name="jobTitle" value="${esc(hr.jobTitle || '')}" placeholder="مثال: مهندس مدني" list="jobList" /></div>
-        <div class="field"><label>القسم</label><input class="input" name="department" value="${esc(hr.department || '')}" placeholder="مثال: الهندسة" list="deptList" /></div>
+        <div></div>
+        ${deptFields(hr)}
         <div class="field"><label>تاريخ التعيين</label><input class="input ltr" type="date" name="hireDate" value="${esc(hr.hireDate || '')}" /></div>
         <div class="field"><label>تاريخ الميلاد (اختياري — لرصيد الإجازات بعد سن 50)</label><input class="input ltr" type="date" name="birthDate" value="${esc(hr.birthDate || '')}" /></div>
         <div class="field"><label>رصيد إجازات مرحَّل إلى هذا العام (يوم)</label><input class="input ltr" type="number" step="0.5" name="leaveOpening" value="${esc(hr.leaveOpening ?? 0)}" />
@@ -1853,7 +1863,7 @@ function openHrModal(e) {
     onSubmit: async (f) => {
       const v = (n) => f[n].value.trim();
       await saveHr(e.id, {
-        jobTitle: v('jobTitle'), department: v('department'), hireDate: v('hireDate'), birthDate: v('birthDate'),
+        jobTitle: v('jobTitle'), department: v('department'), section: v('section'), hireDate: v('hireDate'), birthDate: v('birthDate'),
         leaveOpening: Number(v('leaveOpening') || 0), leaveDaysOverride: v('leaveDaysOverride') === '' ? null : Number(v('leaveDaysOverride')),
         insuranceWage: v('insuranceWage') === '' ? null : Number(v('insuranceWage')),
         insured: f.insured.checked, taxExempt: f.taxExempt.checked, notes: v('notes'),
@@ -1977,19 +1987,41 @@ function exportFile(e, list) {
   XLSX.writeFile(wb, `ملف_${e.code}_${today}.xlsx`);
 }
 
-const DEFAULT_DEPARTMENTS = ['الهندسة والمواقع', 'الإدارة', 'الحسابات', 'الموارد البشرية', 'المشتريات', 'المكتب الفني'];
+/** Company structure: main department (الإدارة) → sub-departments (الأقسام). Any text is still allowed. */
+const DEPARTMENTS = {
+  'الإدارة الفنية': ['الإشراف على التنفيذ', 'المعماري', 'الإنشائي', 'الميكانيكا', 'الكهرباء'],
+  'الإدارة التشغيلية': [],
+};
 
-/** <datalist>s of known departments and job titles (suggestions; any text is allowed). */
-function hrDatalists() {
-  const hr = getState().hr;
-  const uniq = (xs) => [...new Set(xs.map((x) => String(x || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ar'));
-  const depts = uniq([...DEFAULT_DEPARTMENTS, ...hr.map((h) => h.department)]);
-  const jobs = uniq(hr.map((h) => h.jobTitle));
-  return `<datalist id="deptList">${depts.map((d) => `<option value="${esc(d)}"></option>`).join('')}</datalist>
-    <datalist id="jobList">${jobs.map((d) => `<option value="${esc(d)}"></option>`).join('')}</datalist>`;
+/** "الإدارة الفنية ← المعماري" */
+const deptLabel = (hr) => [hr?.department, hr?.section].filter(Boolean).join(' ← ');
+
+/** Department + sub-department fields (inside a modal form). Call wireDeptFields(form) in onOpen. */
+function deptFields(hr = {}) {
+  const mains = [...new Set([...Object.keys(DEPARTMENTS), ...getState().hr.map((h) => h.department).filter(Boolean)])];
+  return `<div class="field"><label>الإدارة</label><select class="input" name="department">
+      <option value="">— اختر —</option>${mains.map((d) => `<option ${hr.department === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select></div>
+    <div class="field"><label>القسم</label><input class="input" name="section" value="${esc(hr.section || '')}" list="secList" placeholder="اختر أو اكتب" />
+      <datalist id="secList"></datalist></div>`;
+}
+function wireDeptFields(form) {
+  const fill = () => {
+    const main = form.department.value;
+    const known = getState().hr.filter((h) => h.department === main).map((h) => h.section);
+    const opts = [...new Set([...(DEPARTMENTS[main] || []), ...known].filter(Boolean))];
+    form.querySelector('#secList').innerHTML = opts.map((o) => `<option value="${esc(o)}"></option>`).join('');
+  };
+  form.department.addEventListener('change', fill);
+  fill();
 }
 
-return { money, monthLabel, serviceText, hrSettings, countFrom, render, openHrModal, openRaiseModal, openLeaveModal, DEFAULT_DEPARTMENTS, hrDatalists };
+/** <datalist> of job titles already used (suggestions). */
+function hrDatalists() {
+  const jobs = [...new Set(getState().hr.map((h) => String(h.jobTitle || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ar'));
+  return `<datalist id="jobList">${jobs.map((d) => `<option value="${esc(d)}"></option>`).join('')}</datalist>`;
+}
+
+return { money, monthLabel, serviceText, hrSettings, countFrom, render, openHrModal, openRaiseModal, openLeaveModal, DEPARTMENTS, deptLabel, deptFields, wireDeptFields, hrDatalists };
 })();
 
 // ===== js/pages/engineers.js =====
@@ -1998,7 +2030,7 @@ const { fn, updateEngineer, saveHr, addSalaryChange, attendanceRange, missionsBe
 const { getState, subscribe, refresh, hrOf, salariesOf, leavesOf } = __m_js_store;
 const { esc, $, badge, icon, modal, toast, confirmDialog, withBusy, todayKey, fmtHours } = __m_js_ui;
 const { leaveBalance, salaryOn, summarize } = __m_js_hr;
-const { hrSettings, countFrom, money, hrDatalists } = __m_js_pages_employee;
+const { hrSettings, countFrom, money, hrDatalists, deptFields, wireDeptFields, DEPARTMENTS } = __m_js_pages_employee;
 
 
 
@@ -2006,7 +2038,7 @@ const { hrSettings, countFrom, money, hrDatalists } = __m_js_pages_employee;
 
 function render(page) {
   let filter = '';
-  let dept = ''; // department filter ('' = all, '—' = without department)
+  let dept = ''; // filter: '' = all, 'main' or 'main||section', '—' = without department
   let month = null; // this month's attendance, for hours / overtime
   const today = todayKey();
   const from = `${today.slice(0, 8)}01`;
@@ -2018,7 +2050,7 @@ function render(page) {
     .catch(() => {});
   page.innerHTML = `
     <section class="card">
-      <div class="card-h"><h3>الموظفون حسب القسم</h3><span class="muted small">اضغط القسم لعرض موظفيه</span></div>
+      <div class="card-h"><h3>الموظفون حسب الإدارة والقسم</h3><span class="muted small">اضغط الإدارة أو القسم لعرض موظفيه</span></div>
       <div class="card-b" id="depts"></div>
     </section>
     <section class="card">
@@ -2036,40 +2068,54 @@ function render(page) {
     <div class="notice">يدخل الموظف (مهندسًا كان أو إداريًا) إلى التطبيق باستخدام <b>الكود</b> وكلمة المرور. يرتبط الحساب تلقائيًا بأول هاتف يُسجَّل منه، وعند تغيير الهاتف اضغط "فك ربط الهاتف".</div>`;
 
   const deptOf = (e) => (hrOf(e.id)?.department || '').trim();
+  const secOf = (e) => (hrOf(e.id)?.section || '').trim();
+  const matchDept = (e) => {
+    if (!dept) return true;
+    if (dept === '—') return !deptOf(e);
+    const [m, sec] = dept.split('||');
+    return deptOf(e) === m && (sec === undefined || secOf(e) === sec);
+  };
   const filtered = () => {
     const q = filter.toLowerCase();
     return getState().engineers.filter((e) => {
       const hr = hrOf(e.id) || {};
-      if (dept && (dept === '—' ? deptOf(e) : deptOf(e) !== dept)) return false;
-      return !q || [e.name, e.code, e.phone, hr.jobTitle, hr.department].some((v) => String(v || '').toLowerCase().includes(q));
+      if (!matchDept(e)) return false;
+      return !q || [e.name, e.code, e.phone, hr.jobTitle, hr.department, hr.section].some((v) => String(v || '').toLowerCase().includes(q));
     });
   };
   const groups = () => {
     const m = new Map();
+    for (const name of Object.keys(DEPARTMENTS)) m.set(name, { name, count: 0, secs: new Map(DEPARTMENTS[name].map((x) => [x, 0])) });
     for (const e of getState().engineers.filter((x) => x.active)) {
       const d = deptOf(e) || '—';
-      if (!m.has(d)) m.set(d, { name: d, count: 0, jobs: new Map() });
+      if (!m.has(d)) m.set(d, { name: d, count: 0, secs: new Map() });
       const g = m.get(d);
       g.count += 1;
-      const j = (hrOf(e.id)?.jobTitle || '').trim() || 'بدون وظيفة';
-      g.jobs.set(j, (g.jobs.get(j) || 0) + 1);
+      const sec = secOf(e) || 'بدون قسم';
+      g.secs.set(sec, (g.secs.get(sec) || 0) + 1);
     }
-    return [...m.values()].sort((a, b) => (a.name === '—') - (b.name === '—') || b.count - a.count);
+    return [...m.values()].filter((g) => g.count || DEPARTMENTS[g.name]).sort((a, b) => (a.name === '—') - (b.name === '—'));
   };
   const drawDepts = () => {
     const gs = groups();
     const total = gs.reduce((a, g) => a + g.count, 0);
     const sel = $('#dept', page);
     const cur = dept;
-    sel.innerHTML = `<option value="">كل الأقسام (${total})</option>${gs
-      .map((g) => `<option value="${esc(g.name)}">${g.name === '—' ? 'بدون قسم' : esc(g.name)} (${g.count})</option>`).join('')}`;
+    const label = (g) => (g.name === '—' ? 'بدون إدارة' : g.name);
+    sel.innerHTML = `<option value="">كل الإدارات (${total})</option>${gs.map((g) => g.name === '—'
+      ? `<option value="—">بدون إدارة (${g.count})</option>`
+      : `<optgroup label="${esc(g.name)}"><option value="${esc(g.name)}">كل ${esc(g.name)} (${g.count})</option>${[...g.secs]
+          .filter(([, n]) => n).map(([sec, n]) => `<option value="${esc(`${g.name}||${sec === 'بدون قسم' ? '' : sec}`)}">${esc(sec)} (${n})</option>`).join('')}</optgroup>`).join('')}`;
     sel.value = cur;
-    $('#depts', page).innerHTML = gs.length
-      ? `<div class="dept-grid">${gs.map((g) => `<button type="button" class="dept ${dept === g.name ? 'on' : ''}" data-dept="${esc(g.name)}">
-          <span class="dn">${g.name === '—' ? 'بدون قسم' : esc(g.name)}</span><b>${g.count}</b>
-          <span class="dj">${[...g.jobs].map(([j, n]) => `${esc(j)}${n > 1 ? ` ×${n}` : ''}`).join('، ')}</span></button>`).join('')}
-          <div class="dept total"><span class="dn">إجمالي الموظفين النشطين</span><b>${total}</b></div></div>`
-      : '<div class="muted">لا يوجد موظفون.</div>';
+    $('#depts', page).innerHTML = `<div class="dept-tree">${gs.map((g) => `
+      <div class="dept-main ${dept === g.name || (g.name === '—' && dept === '—') ? 'on' : ''}">
+        <button type="button" class="dm" data-dept="${esc(g.name === '—' ? '—' : g.name)}"><span>${esc(label(g))}</span><b>${g.count}</b></button>
+        ${g.name === '—' ? '' : `<div class="dept-subs">${[...g.secs].map(([sec, n]) => {
+          const key = `${g.name}||${sec === 'بدون قسم' ? '' : sec}`;
+          return `<button type="button" class="ds ${dept === key ? 'on' : ''} ${n ? '' : 'zero'}" data-dept="${esc(key)}"><span>${esc(sec)}</span><b>${n}</b></button>`;
+        }).join('')}</div>`}
+      </div>`).join('')}
+      <div class="dept-main total"><div class="dm"><span>إجمالي الموظفين النشطين</span><b>${total}</b></div></div></div>`;
   };
 
   const draw = () => {
@@ -2091,7 +2137,7 @@ function render(page) {
       });
     };
     $('#list', page).innerHTML = `<table class="t emp"><thead><tr>
-      <th>الموظف</th><th>الوظيفة / القسم</th><th>تاريخ التعيين</th><th>الراتب</th><th>ساعات العمل<br>هذا الشهر</th><th>الإضافي<br>هذا الشهر</th><th>رصيد الإجازات</th>
+      <th>الموظف</th><th>الوظيفة / الإدارة / القسم</th><th>تاريخ التعيين</th><th>الراتب</th><th>ساعات العمل<br>هذا الشهر</th><th>الإضافي<br>هذا الشهر</th><th>رصيد الإجازات</th>
       <th>الحالة / الهاتف</th><th></th>
     </tr></thead><tbody>${list
       .map((e) => {
@@ -2101,7 +2147,7 @@ function render(page) {
         const bal = leaveBalance(hr, leavesOf(e.id), today);
         return `<tr>
         <td class="person wide"><a href="#/employee?id=${esc(e.id)}"><b>${esc(e.name)}</b></a><span><span class="ltr">${esc(e.code)}</span>${e.missionsAllowed ? ` · ${badge('مأموريات', 'info')}` : ''}</span></td>
-        <td class="job">${hr.jobTitle ? `<b>${esc(hr.jobTitle)}</b>` : '<span class="muted small">لم تُحدَّد</span>'}${hr.department ? `<div>${badge(hr.department, 'info')}</div>` : ''}</td>
+        <td class="job">${hr.jobTitle ? `<b>${esc(hr.jobTitle)}</b>` : '<span class="muted small">لم تُحدَّد</span>'}${hr.department ? `<div class="muted small">${esc(hr.department)}</div>` : ''}${hr.section ? `<div>${badge(hr.section, 'info')}</div>` : ''}</td>
         <td class="num ltr">${hr.hireDate ? esc(hr.hireDate) : '<span class="muted small">—</span>'}</td>
         <td class="num">${sal ? money(sal.basicSalary + sal.allowances) : '<span class="muted small">—</span>'}</td>
         <td class="num">${st ? fmtHours(st.totalMinutes) : '…'}</td>
@@ -2236,7 +2282,8 @@ function openEngineerModal(eng) {
         <span class="hint">انسخها وأرسلها إلى الموظف مع الكود.</span></div>`}
       ${isEdit ? '' : `<div class="grid-2">
         <div class="field"><label>الوظيفة</label><input class="input" name="jobTitle" placeholder="مثال: مهندس مدني" list="jobList" /></div>
-        <div class="field"><label>القسم</label><input class="input" name="department" placeholder="مثال: الهندسة والمواقع" list="deptList" /></div>
+        <div></div>
+        ${deptFields()}
         <div class="field"><label>تاريخ التعيين</label><input class="input ltr" type="date" name="hireDate" /></div>
         <div class="field"><label>الراتب الأساسي</label><input class="input ltr" type="number" step="0.01" min="0" name="basic" /></div>
         <div class="field"><label>البدلات</label><input class="input ltr" type="number" step="0.01" min="0" name="allow" /></div>
@@ -2245,6 +2292,7 @@ function openEngineerModal(eng) {
       <label class="check"><input type="checkbox" name="missions" ${e.missionsAllowed ? 'checked' : ''} />
         مسموح له بطلب مأموريات (للإداريين الذين يخرجون في مهام عمل)</label>`,
     onOpen: (form) => {
+      if (form.department) wireDeptFields(form);
       const gen = form.querySelector('[data-gen]');
       if (gen) gen.addEventListener('click', () => (form.password.value = genPassword()));
     },
@@ -2267,9 +2315,10 @@ function openEngineerModal(eng) {
       if (created?.uid) {
         const jobTitle = form.jobTitle.value.trim();
         const department = form.department.value.trim();
+        const section = form.section.value.trim();
         const hireDate = form.hireDate.value;
         try {
-          if (jobTitle || hireDate || department) await saveHr(created.uid, { jobTitle, department, hireDate });
+          if (jobTitle || hireDate || department || section) await saveHr(created.uid, { jobTitle, department, section, hireDate });
           if (form.basic.value !== '') {
             await addSalaryChange(created.uid, {
               effectiveDate: hireDate || todayKey(), basicSalary: Number(form.basic.value), allowances: Number(form.allow.value || 0),
@@ -2314,19 +2363,20 @@ function exportEmployees(list, groups) {
     const hr = hrOf(e.id) || {};
     const sal = salaryOn(salariesOf(e.id), today);
     return {
-      'الكود': e.code, 'الاسم': e.name, 'الوظيفة': hr.jobTitle || '', 'القسم': hr.department || '',
+      'الكود': e.code, 'الاسم': e.name, 'الوظيفة': hr.jobTitle || '', 'الإدارة': hr.department || '', 'القسم': hr.section || '',
       'تاريخ التعيين': hr.hireDate || '', 'الراتب الأساسي': sal?.basicSalary ?? '', 'البدلات': sal?.allowances ?? '',
       'رصيد الإجازات': leaveBalance(hr, leavesOf(e.id), today).remaining, 'الحالة': e.active ? 'نشط' : 'موقوف',
     };
   });
-  const byDept = groups.map((g) => ({
-    'القسم': g.name === '—' ? 'بدون قسم' : g.name, 'عدد الموظفين': g.count,
-    'الوظائف': [...g.jobs].map(([j, n]) => `${j} (${n})`).join('، '),
-  }));
-  byDept.push({ 'القسم': 'الإجمالي', 'عدد الموظفين': groups.reduce((a, g) => a + g.count, 0), 'الوظائف': '' });
+  const byDept = [];
+  for (const g of groups) {
+    byDept.push({ 'الإدارة': g.name === '—' ? 'بدون إدارة' : g.name, 'القسم': 'الإجمالي', 'عدد الموظفين': g.count });
+    for (const [sec, n] of g.secs) if (g.name !== '—') byDept.push({ 'الإدارة': '', 'القسم': sec, 'عدد الموظفين': n });
+  }
+  byDept.push({ 'الإدارة': 'إجمالي الشركة', 'القسم': '', 'عدد الموظفين': groups.reduce((a, g) => a + g.count, 0) });
   const wb = XLSX.utils.book_new();
   wb.Workbook = { Views: [{ RTL: true }] };
-  for (const [name, data] of [['الموظفون', rows], ['حسب القسم', byDept]]) {
+  for (const [name, data] of [['الموظفون', rows], ['حسب الإدارة والقسم', byDept]]) {
     const ws = XLSX.utils.json_to_sheet(data.length ? data : [{ '': 'لا توجد بيانات' }]);
     ws['!cols'] = Object.keys(data[0] || { a: 1 }).map((k) => ({ wch: Math.max(14, k.length + 8) }));
     XLSX.utils.book_append_sheet(wb, ws, name);
@@ -3022,7 +3072,7 @@ function exportExcel(lines, month) {
   if (!window.XLSX) return toast('مكتبة Excel لم تُحمّل، تأكد من الإنترنت', 'bad');
   if (!lines.length) return;
   const rows = lines.map(({ e, hr, p, adj }) => ({
-    'الكود': e.code, 'الاسم': e.name, 'الوظيفة': hr.jobTitle || '', 'القسم': hr.department || '', 'الأساسي': p.basic, 'البدلات': p.allowances,
+    'الكود': e.code, 'الاسم': e.name, 'الوظيفة': hr.jobTitle || '', 'الإدارة': hr.department || '', 'القسم': hr.section || '', 'الأساسي': p.basic, 'البدلات': p.allowances,
     'أيام الاستحقاق': p.payDays, 'المستحق': p.earned, 'ساعات إضافية': p.otHours, 'قيمة الإضافي': p.otPay, 'مكافأة': p.bonus,
     'إجمالي المستحقات': p.gross, 'أيام الغياب': p.absent, 'خصم الغياب': p.absenceDed, 'أيام بدون أجر': p.unpaid,
     'خصم بدون أجر': p.unpaidDed, 'دقائق التأخير': p.lateMinutes, 'خصم التأخير': p.lateDed, 'أجر الاشتراك': p.insWage,
