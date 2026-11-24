@@ -238,6 +238,8 @@ table.t td.actions { white-space: nowrap; text-align: left; }
 
 .notice { padding: 12px 14px; border-radius: 10px; background: var(--info-bg); color: var(--info); font-size: 13.5px; }
 .notice.warn { background: var(--warn-bg); color: var(--warn); }
+a.notice { display: block; text-decoration: none; }
+.notice a { color: inherit; text-decoration: underline; }
 code.k { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; border: 1px solid var(--line); font-size: 12.5px; }
 
 /* ---------- responsive ---------- */
@@ -316,6 +318,46 @@ table.emp th { white-space: normal; line-height: 1.3; }
 .dept-main.total .dm:hover { background: none; }
 table.emp td.job { min-width: 150px; }
 table.emp td.job .badge { margin-top: 4px; }
+
+/* ---------- HR batch 1: mission destination, requests, documents ---------- */
+.search-results { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.search-results:empty { display: none; }
+.chip { border: 1px solid var(--line); background: var(--card, #fff); border-radius: 999px; padding: 5px 12px;
+  font: inherit; font-size: 13px; cursor: pointer; text-align: start; max-width: 100%; }
+.chip:hover { border-color: var(--brand); color: var(--brand); }
+.req-list { display: grid; gap: 10px; }
+.req-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 6px; }
+.req-card .who { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.req-card .what { font-size: 15px; }
+.req-card .ctx { font-size: 13px; color: var(--muted); }
+.req-card .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.tabs-mini { display: flex; gap: 6px; flex-wrap: wrap; }
+.tabs-mini button { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+.tabs-mini button.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+.doc-list { display: grid; gap: 8px; }
+.doc-row { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; flex-wrap: wrap; }
+.doc-row .doc-main { flex: 1; min-width: 180px; display: grid; gap: 2px; }
+.doc-row .doc-main small { color: var(--muted); }
+.nav-count { background: var(--bad, #c0392b); color: #fff; border-radius: 999px; font-size: 11px; padding: 0 7px; line-height: 18px; margin-inline-start: auto; }
+
+/* evaluations & recruitment */
+.eval-box { margin: 6px 0 10px; }
+.eval-t td { vertical-align: top; }
+.score-pick { display: inline-flex; gap: 4px; }
+.score-pick button { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: transparent; font: inherit; font-weight: 700; cursor: pointer; }
+.score-pick button.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+.input.sm { padding: 6px 10px; font-size: 13px; }
+.eval-total { padding: 10px 14px; background: var(--info-bg); color: var(--info); border-radius: 10px; margin-bottom: 12px; }
+.eval-total:empty { display: none; }
+.crit-group { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; }
+.crit-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.crit-h .btn { margin-inline-start: auto; }
+.crit-items { display: grid; gap: 6px; margin-top: 8px; }
+.crit-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px dashed var(--line); }
+.crit-item > div { flex: 1; }
+.crit-item.off { opacity: .55; }
+.probation { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.stars { color: var(--accent, #f2a900); letter-spacing: 1px; }
 </style>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
@@ -380,6 +422,20 @@ const mapMission = (r) => ({
   status: r.status, date: r.date, requestedAt: r.requested_at, decidedAt: r.decided_at, decisionNote: r.decision_note,
   startedAt: r.started_at, start: point(r.start_point), endedAt: r.ended_at, end: point(r.end_point),
   durationMinutes: r.duration_minutes, flags: r.flags || [],
+  destLat: r.dest_lat ?? null, destLng: r.dest_lng ?? null, destRadius: r.dest_radius ?? 200,
+  late: r.late === true, lateMinutes: r.late_minutes || 0,
+});
+
+const mapRequest = (r) => ({
+  id: r.id, uid: r.uid, name: r.name, code: r.code, type: r.type, leaveKind: r.leave_kind,
+  startDate: r.start_date, endDate: r.end_date, days: r.days == null ? null : Number(r.days),
+  permKind: r.perm_kind, permDate: r.perm_date, minutes: r.minutes, amount: r.amount == null ? null : Number(r.amount),
+  note: r.note || '', status: r.status, requestedAt: r.requested_at, decidedAt: r.decided_at, decisionNote: r.decision_note || '',
+});
+
+const mapDoc = (r) => ({
+  id: r.id, uid: r.uid, kind: r.kind, title: r.title || '', number: r.number || '', issueDate: r.issue_date,
+  expiryDate: r.expiry_date, filePath: r.file_path, notes: r.notes || '', createdAt: r.created_at,
 });
 
 const mapAttendance = (r) => ({
@@ -394,6 +450,7 @@ const SETTINGS_MAP = {
   workDays: 'work_days', maxAccuracy: 'max_accuracy', missedAlertTime: 'missed_alert_time',
   dailySummaryTime: 'daily_summary_time', selfieRequired: 'selfie_required',
   allowCheckoutOutside: 'allow_checkout_outside', selfieRetentionDays: 'selfie_retention_days',
+  allowDeviceAuth: 'allow_device_auth',
 };
 const mapSettings = (r) =>
   Object.fromEntries(Object.entries(SETTINGS_MAP).filter(([, col]) => r && col in r).map(([k, col]) => [k, r[col]]));
@@ -516,6 +573,8 @@ const mapHr = (r) => ({
   uid: r.uid, jobTitle: r.job_title || '', department: r.department || '', section: r.section || '', hireDate: r.hire_date, birthDate: r.birth_date, insured: r.insured !== false,
   insuranceWage: num(r.insurance_wage), taxExempt: r.tax_exempt === true, leaveOpening: Number(r.leave_opening || 0),
   leaveDaysOverride: num(r.leave_days_override), notes: r.notes || '',
+  probationMonths: r.probation_months == null ? 3 : Number(r.probation_months), probationResult: r.probation_result || null,
+  probationNote: r.probation_note || '', probationDecided: r.probation_decided || null,
 });
 const mapSalary = (r) => ({
   id: r.id, uid: r.uid, effectiveDate: r.effective_date, basicSalary: Number(r.basic_salary), allowances: Number(r.allowances || 0),
@@ -559,7 +618,79 @@ async function saveHr(uid, o) {
     leave_opening: Number(o.leaveOpening || 0), leave_days_override: o.leaveDaysOverride ?? null, notes: o.notes ?? '',
     updated_at: new Date().toISOString(),
   };
+  if (o.probationMonths != null) row.probation_months = Number(o.probationMonths);
   must(await sb.from('hr_employees').upsert(row));
+}
+/** Probation decision: result 'confirmed' | 'not_confirmed' | null (undo). */
+async function saveProbation(uid, result, note) {
+  must(await sb.from('hr_employees').upsert({
+    uid, probation_result: result, probation_note: note || '', updated_at: new Date().toISOString(),
+    probation_decided: result ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date()) : null,
+  }));
+}
+
+/* ---------------- performance evaluations ---------------- */
+
+const mapCriterion = (r) => ({
+  id: r.id, scopeType: r.scope_type, scopeValue: r.scope_value || '', name: r.name, description: r.description || '',
+  weight: Number(r.weight), sort: r.sort || 0, active: r.active !== false,
+});
+const mapEvaluation = (r) => ({
+  id: r.id, uid: r.uid, period: r.period, evalDate: r.eval_date, evaluator: r.evaluator || '', scores: r.scores || [],
+  total: Number(r.total || 0), grade: r.grade || '', strengths: r.strengths || '', improvements: r.improvements || '',
+  recommendation: r.recommendation || '', notes: r.notes || '', createdAt: r.created_at,
+});
+const listCriteria = async () =>
+  must(await sb.from('eval_criteria').select('*').order('sort').order('created_at')).map(mapCriterion);
+async function saveCriterion(id, c) {
+  const row = { scope_type: c.scopeType, scope_value: c.scopeType === 'all' ? '' : c.scopeValue || '', name: c.name,
+    description: c.description || '', weight: Number(c.weight), sort: Number(c.sort || 0), active: c.active !== false };
+  return id ? must(await sb.from('eval_criteria').update(row).eq('id', id)) : must(await sb.from('eval_criteria').insert(row));
+}
+const deleteCriterion = async (id) => must(await sb.from('eval_criteria').delete().eq('id', id));
+async function listEvaluations(uid) {
+  let q = sb.from('evaluations').select('*').order('eval_date', { ascending: false });
+  if (uid) q = q.eq('uid', uid);
+  return must(await q.limit(2000)).map(mapEvaluation);
+}
+async function saveEvaluation(id, e) {
+  const row = { uid: e.uid, period: e.period, eval_date: e.evalDate, evaluator: e.evaluator || '', scores: e.scores,
+    total: e.total, grade: e.grade, strengths: e.strengths || '', improvements: e.improvements || '',
+    recommendation: e.recommendation || '', notes: e.notes || '' };
+  return id ? must(await sb.from('evaluations').update(row).eq('id', id)) : must(await sb.from('evaluations').insert(row));
+}
+const deleteEvaluation = async (id) => must(await sb.from('evaluations').delete().eq('id', id));
+
+/* ---------------- recruitment / interviews ---------------- */
+
+const mapInterview = (r) => ({
+  id: r.id, candidateName: r.candidate_name, phone: r.phone || '', jobTitle: r.job_title || '', department: r.department || '',
+  interviewDate: r.interview_date, interviewer: r.interviewer || '', status: r.status, rejectReason: r.reject_reason || '',
+  offeredSalary: num(r.offered_salary), expectedSalary: num(r.expected_salary), contactResult: r.contact_result || '',
+  rating: r.rating || null, cvPath: r.cv_path || null, notes: r.notes || '', createdAt: r.created_at, updatedAt: r.updated_at,
+});
+const listInterviews = async () =>
+  must(await sb.from('interviews').select('*').order('interview_date', { ascending: false, nullsFirst: true }).limit(3000)).map(mapInterview);
+async function saveInterview(id, o, file) {
+  let cvPath = o.cvPath || null;
+  if (file) {
+    const clean = file.name.replace(/[^\w.\-]+/g, '_').slice(-60) || 'cv';
+    cvPath = `interviews/${Date.now()}-${clean}`;
+    must(await sb.storage.from('hr-docs').upload(cvPath, file, { contentType: file.type || undefined, upsert: false }));
+    if (o.cvPath && o.cvPath !== cvPath) await sb.storage.from('hr-docs').remove([o.cvPath]);
+  }
+  const row = {
+    candidate_name: o.candidateName, phone: o.phone || '', job_title: o.jobTitle || '', department: o.department || '',
+    interview_date: o.interviewDate || null, interviewer: o.interviewer || '', status: o.status,
+    reject_reason: o.status === 'rejected' ? o.rejectReason || '' : o.rejectReason || '',
+    offered_salary: o.offeredSalary ?? null, expected_salary: o.expectedSalary ?? null, contact_result: o.contactResult || '',
+    rating: o.rating || null, cv_path: cvPath, notes: o.notes || '', updated_at: new Date().toISOString(),
+  };
+  return id ? must(await sb.from('interviews').update(row).eq('id', id)) : must(await sb.from('interviews').insert(row));
+}
+async function deleteInterview(o) {
+  if (o.cvPath) await sb.storage.from('hr-docs').remove([o.cvPath]);
+  return must(await sb.from('interviews').delete().eq('id', o.id));
 }
 const addSalaryChange = async (uid, c) =>
   must(await sb.from('salary_changes').insert({
@@ -607,6 +738,69 @@ const missionsBetween = async (from, to, uid) => {
   return must(await q.limit(5000)).map(mapMission);
 };
 
+/* ---------------- employee requests (leave / permission / advance) ---------------- */
+
+/** Requests from `from` (YYYY-MM-DD) on, plus every pending one. */
+async function listRequests(from) {
+  const [recent, open] = await Promise.all([
+    sb.from('requests').select('*').gte('requested_at', from).order('requested_at', { ascending: false }).limit(1000),
+    sb.from('requests').select('*').eq('status', 'pending').order('requested_at'),
+  ]);
+  const byId = new Map();
+  [...must(open), ...must(recent)].forEach((r) => byId.set(r.id, r));
+  return [...byId.values()].map(mapRequest);
+}
+async function pendingRequestsCount() {
+  const { count, error } = await sb.from('requests').select('id', { count: 'exact', head: true }).eq('status', 'pending');
+  return error ? 0 : count || 0;
+}
+/** Approved permissions between two dates (used to excuse late minutes / early leave). */
+async function approvedPermissions(from, to, uid) {
+  let q = sb.from('requests').select('*').eq('type', 'permission').eq('status', 'approved').gte('perm_date', from).lte('perm_date', to);
+  if (uid) q = q.eq('uid', uid);
+  const { data, error } = await q.limit(5000);
+  return error ? [] : data.map(mapRequest);
+}
+
+/* ---------------- employee documents & contracts ---------------- */
+
+async function listDocs(uid) {
+  let q = sb.from('employee_documents').select('*').order('expiry_date', { ascending: true, nullsFirst: false });
+  if (uid) q = q.eq('uid', uid);
+  return must(await q.limit(2000)).map(mapDoc);
+}
+/** Documents that expire before `until` (YYYY-MM-DD), including expired ones. */
+async function expiringDocs(until) {
+  const { data, error } = await sb.from('employee_documents').select('*').not('expiry_date', 'is', null)
+    .lte('expiry_date', until).order('expiry_date');
+  return error ? [] : data.map(mapDoc);
+}
+async function saveDoc(id, uid, d, file) {
+  let filePath = d.filePath || null;
+  if (file) {
+    const clean = file.name.replace(/[^\w.\-]+/g, '_').slice(-60) || 'file';
+    filePath = `${uid}/${Date.now()}-${clean}`;
+    must(await sb.storage.from('hr-docs').upload(filePath, file, { contentType: file.type || undefined, upsert: false }));
+    if (d.filePath && d.filePath !== filePath) await sb.storage.from('hr-docs').remove([d.filePath]);
+  }
+  const row = {
+    uid, kind: d.kind, title: d.title || '', number: d.number || '', issue_date: d.issueDate || null,
+    expiry_date: d.expiryDate || null, notes: d.notes || '', file_path: filePath,
+  };
+  return id
+    ? must(await sb.from('employee_documents').update(row).eq('id', id))
+    : must(await sb.from('employee_documents').insert(row));
+}
+async function deleteDoc(d) {
+  if (d.filePath) await sb.storage.from('hr-docs').remove([d.filePath]);
+  return must(await sb.from('employee_documents').delete().eq('id', d.id));
+}
+async function docUrl(path) {
+  if (!path) return null;
+  const { data } = await sb.storage.from('hr-docs').createSignedUrl(path, 600);
+  return data?.signedUrl || null;
+}
+
 const urlCache = new Map();
 async function selfieUrl(path) {
   if (!path) return null;
@@ -625,7 +819,7 @@ function watch(table, cb) {
   return () => sb.removeChannel(ch);
 }
 
-return { configured, sb, mapSite, mapEngineer, mapMission, mapAttendance, mapSettings, signIn, signOut, resetPasswordEmail, setNewPassword, onAuth, isAdmin, fn, listSites, saveSite, deleteSite, listEngineers, updateEngineer, getSettings, saveSettings, getChatIds, saveChatIds, attendanceOn, attendanceRange, listAttempts, listMissions, pendingMissionsCount, mapHr, mapSalary, mapLeave, loadHr, saveHr, addSalaryChange, deleteSalaryChange, addLeave, deleteLeave, savePayrollSettings, listAdjustments, saveAdjustment, attendanceForUser, missionsBetween, selfieUrl, watch };
+return { configured, sb, mapSite, mapEngineer, mapMission, mapRequest, mapDoc, mapAttendance, mapSettings, signIn, signOut, resetPasswordEmail, setNewPassword, onAuth, isAdmin, fn, listSites, saveSite, deleteSite, listEngineers, updateEngineer, getSettings, saveSettings, getChatIds, saveChatIds, attendanceOn, attendanceRange, listAttempts, listMissions, pendingMissionsCount, mapHr, mapSalary, mapLeave, loadHr, saveHr, saveProbation, mapCriterion, mapEvaluation, listCriteria, saveCriterion, deleteCriterion, listEvaluations, saveEvaluation, deleteEvaluation, mapInterview, listInterviews, saveInterview, deleteInterview, addSalaryChange, deleteSalaryChange, addLeave, deleteLeave, savePayrollSettings, listAdjustments, saveAdjustment, attendanceForUser, missionsBetween, listRequests, pendingRequestsCount, approvedPermissions, listDocs, expiringDocs, saveDoc, deleteDoc, docUrl, selfieUrl, watch };
 })();
 
 // ===== js/ui.js =====
@@ -727,6 +921,8 @@ const REASON_LABELS = {
   mission_open: ['مأمورية مفتوحة', 'info'],
   mission_not_approved: ['مأمورية غير موافَق عليها', 'warn'],
   mission_not_active: ['لا توجد مأمورية جارية', 'info'],
+  mission_far: ['بعيد عن مكان المأمورية', 'bad'],
+  device_auth_disabled: ['بصمة الهاتف موقوفة', 'warn'],
 };
 
 const TYPE_LABELS = { in: 'حضور', out: 'انصراف', mission_start: 'بدء مأمورية', mission_end: 'إنهاء مأمورية' };
@@ -745,6 +941,19 @@ const FLAG_LABELS = {
   checkout_outside_site: ['انصراف من خارج الموقع', 'warn'],
   non_workday: ['يوم إجازة', 'info'],
   no_checkout: ['بدون انصراف', 'bad'],
+  device_auth: ['ببصمة الهاتف بدون صورة', 'warn'],
+  end_outside_destination: ['أنهاها بعيدًا عن الجهة', 'warn'],
+  no_end: ['لم يُسجّل الانتهاء', 'bad'],
+};
+
+const REQUEST_TYPES = { leave: 'إجازة', permission: 'إذن', advance: 'سلفة' };
+const LEAVE_KINDS = { annual: 'اعتيادية', casual: 'عارضة', sick: 'مرضية', unpaid: 'بدون أجر', other: 'أخرى' };
+const REQUEST_STATUS = {
+  pending: ['بانتظار الرد', 'warn'], approved: ['تمت الموافقة', 'ok'], rejected: ['مرفوض', 'bad'], cancelled: ['ألغاه الموظف', ''],
+};
+const DOC_KINDS = {
+  contract: 'عقد العمل', national_id: 'بطاقة الرقم القومي', insurance: 'التأمينات', military: 'موقف التجنيد',
+  certificate: 'مؤهل / شهادة', license: 'رخصة / كارنيه نقابة', other: 'مستند آخر',
 };
 
 function badge(text, kind = '') {
@@ -885,6 +1094,9 @@ const ICONS = {
   car: '<path d="M5 17h14M6 17v2M18 17v2"/><path d="M3 13l2-6a2 2 0 0 1 1.9-1.4h10.2A2 2 0 0 1 19 7l2 6v4H3z"/><circle cx="7.5" cy="13.5" r="1"/><circle cx="16.5" cy="13.5" r="1"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
   money: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 10v4M18 10v4"/>',
+  star: '<path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/>',
+  briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2M2 13h20"/>',
+  inbox: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"/>',
   file: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
 };
 
@@ -897,7 +1109,7 @@ function mapsLink(lat, lng, label = 'خريطة') {
   return `<a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" rel="noopener">${esc(label)}</a>`;
 }
 
-return { TZ, esc, $, $$, toDate, dateKey, todayKey, fmtTime, fmtTime24, fmtLongDate, fmtDateTime, weekdayOfKey, weekdayIndexOfKey, fmtDuration, fmtHours, minutesBetween, parseHHMM, addDaysKey, WEEKDAYS, REASON_LABELS, TYPE_LABELS, MISSION_STATUS, FLAG_LABELS, badge, flagBadges, toast, modal, confirmDialog, withBusy, icon, mapsLink };
+return { TZ, esc, $, $$, toDate, dateKey, todayKey, fmtTime, fmtTime24, fmtLongDate, fmtDateTime, weekdayOfKey, weekdayIndexOfKey, fmtDuration, fmtHours, minutesBetween, parseHHMM, addDaysKey, WEEKDAYS, REASON_LABELS, TYPE_LABELS, MISSION_STATUS, FLAG_LABELS, REQUEST_TYPES, LEAVE_KINDS, REQUEST_STATUS, DOC_KINDS, badge, flagBadges, toast, modal, confirmDialog, withBusy, icon, mapsLink };
 })();
 
 // ===== js/store.js =====
@@ -917,6 +1129,7 @@ const DEFAULT_SETTINGS = {
   selfieRequired: true,
   allowCheckoutOutside: true,
   selfieRetentionDays: 90,
+  allowDeviceAuth: true,
 };
 
 const DEFAULT_PAYROLL = {
@@ -1002,11 +1215,316 @@ const leavesOf = (uid) => state.leaves.filter((l) => l.uid === uid);
 return { DEFAULT_SETTINGS, DEFAULT_PAYROLL, startStore, refresh, stopStore, getState, subscribe, siteName, hrOf, salariesOf, leavesOf };
 })();
 
+// ===== js/hr.js =====
+const __m_js_hr = (() => {
+
+// HR & payroll calculations (pure functions — no DOM, no Supabase), so they can be unit-tested.
+// Dates are 'YYYY-MM-DD' keys in Cairo time.
+
+const pad = (n) => String(n).padStart(2, '0');
+const keyToUTC = (k) => new Date(`${k}T12:00:00Z`);
+const addDays = (k, n) => {
+  const d = keyToUTC(k);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+const weekdayIdx = (k) => keyToUTC(k).getUTCDay();
+const monthStart = (m) => `${m}-01`;
+const monthEnd = (m) => {
+  const [y, mo] = m.split('-').map(Number);
+  return `${m}-${pad(new Date(Date.UTC(y, mo, 0)).getUTCDate())}`;
+};
+const daysInMonth = (m) => Number(monthEnd(m).slice(8));
+const maxKey = (...ks) => ks.filter(Boolean).sort().pop();
+const minKey = (...ks) => ks.filter(Boolean).sort()[0];
+const round2 = (x) => Math.round((x + Number.EPSILON) * 100) / 100;
+
+/** Whole years + months between two date keys. */
+function serviceLength(from, to) {
+  if (!from || !to || to < from) return { years: 0, months: 0, totalMonths: 0 };
+  const [y1, m1, d1] = from.split('-').map(Number);
+  const [y2, m2, d2] = to.split('-').map(Number);
+  let total = (y2 - y1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0);
+  if (total < 0) total = 0;
+  return { years: Math.floor(total / 12), months: total % 12, totalMonths: total };
+}
+
+const LEAVE_KINDS = {
+  annual: { label: 'اعتيادية', fromBalance: true, paid: true },
+  casual: { label: 'عارضة', fromBalance: true, paid: true },
+  sick: { label: 'مرضية', fromBalance: false, paid: true },
+  unpaid: { label: 'بدون أجر', fromBalance: false, paid: false },
+  other: { label: 'أخرى (مدفوعة)', fromBalance: false, paid: true },
+};
+
+/**
+ * Yearly annual-leave entitlement (Egyptian labour law): nothing before 6 months of service,
+ * 15 days in the first year, 21 days after, 30 days after 10 years of service or from age 50.
+ */
+function leaveEntitlement(hr, today) {
+  if (hr?.leaveDaysOverride != null && hr.leaveDaysOverride !== '') return Number(hr.leaveDaysOverride);
+  if (!hr?.hireDate) return 21;
+  const s = serviceLength(hr.hireDate, today);
+  if (s.totalMonths < 6) return 0;
+  const age = hr.birthDate ? serviceLength(hr.birthDate, today).years : 0;
+  if (s.years >= 10 || age >= 50) return 30;
+  if (s.years < 1) return 15;
+  return 21;
+}
+
+/** Leave balance for the calendar year of `today`. */
+function leaveBalance(hr, leaves, today) {
+  const year = today.slice(0, 4);
+  const entitlement = leaveEntitlement(hr, today);
+  const opening = Number(hr?.leaveOpening || 0);
+  const inYear = leaves.filter((l) => l.startDate.slice(0, 4) === year);
+  const used = inYear.filter((l) => LEAVE_KINDS[l.kind]?.fromBalance).reduce((a, l) => a + Number(l.days || 0), 0);
+  const casual = inYear.filter((l) => l.kind === 'casual').reduce((a, l) => a + Number(l.days || 0), 0);
+  return { year, entitlement, opening, used, casual, remaining: round2(entitlement + opening - used) };
+}
+
+/** Work days (by the settings' weekdays) between two keys, inclusive. */
+function workdaysBetween(from, to, workDays) {
+  const out = [];
+  if (!from || !to) return out;
+  for (let k = from; k <= to; k = addDays(k, 1)) if (workDays.includes(weekdayIdx(k))) out.push(k);
+  return out;
+}
+
+/** Salary in force on `date`: the latest change with effective_date <= date. */
+function salaryOn(changes, date) {
+  let best = null;
+  for (const c of changes) if (c.effectiveDate <= date && (!best || c.effectiveDate >= best.effectiveDate)) best = c;
+  return best;
+}
+
+/**
+ * Attendance summary of one employee over [from, to] (to is capped at today).
+ * Days with a started/finished mission count as present. Leave days are excused.
+ * Lateness is decided by the FIRST event of the day (check-in or mission arrival); an approved
+ * "late arrival" permission excuses its minutes (what is left within the grace period is not late).
+ */
+function summarize({ from, to, today, startKey, rows, missions, leaves, settings, permissions = [] }) {
+  const workDays = settings.workDays || [];
+  const standard = Math.max(0, (settings.workEndMin ?? 1020) - (settings.workStartMin ?? 480));
+  const last = minKey(to, today);
+  const first = maxKey(from, startKey);
+  const days = new Map(); // key -> { minutes, late, firstAt }
+  const touch = (k) => {
+    if (!days.has(k)) days.set(k, { minutes: 0, late: 0, firstAt: null });
+    return days.get(k);
+  };
+  // The earliest arrival of the day decides lateness.
+  const arrive = (d, at, late) => {
+    const t = at ? new Date(at).getTime() : Number.MAX_SAFE_INTEGER;
+    if (d.firstAt == null || t < d.firstAt) {
+      d.firstAt = t;
+      d.late = late;
+    }
+  };
+  let noCheckout = 0;
+  for (const r of rows) {
+    if (r.date < from || r.date > to) continue;
+    const d = touch(r.date);
+    d.minutes += r.durationMinutes || 0;
+    arrive(d, r.checkInAt, r.late ? r.lateMinutes || 0 : 0);
+    if (r.status === 'auto_closed' || (r.flags || []).includes('no_checkout')) noCheckout += 1;
+  }
+  let missionDays = 0;
+  for (const m of missions) {
+    if (!['active', 'done'].includes(m.status) || m.date < from || m.date > to) continue;
+    const d = touch(m.date);
+    d.minutes += m.durationMinutes || 0;
+    arrive(d, m.startedAt, m.late ? m.lateMinutes || 0 : 0);
+    missionDays += 1;
+  }
+  const grace = Number(settings.graceMinutes ?? 15);
+  for (const p of permissions) {
+    if (p.permKind !== 'late' || !days.has(p.permDate)) continue;
+    const d = days.get(p.permDate);
+    const left = Math.max(0, d.late - Number(p.minutes || 0));
+    d.late = left > grace ? left : 0;
+  }
+  const leaveDay = new Map(); // key -> kind (work days only)
+  for (const l of leaves) {
+    for (let k = maxKey(l.startDate, from); k <= minKey(l.endDate, to); k = addDays(k, 1)) {
+      if (workDays.includes(weekdayIdx(k))) leaveDay.set(k, l.kind);
+    }
+  }
+  const expected = first && last && first <= last ? workdaysBetween(first, last, workDays) : [];
+  let absent = 0, unpaid = 0, paidLeave = 0;
+  for (const k of expected) {
+    if (days.has(k)) continue;
+    const kind = leaveDay.get(k);
+    if (!kind) absent += 1;
+    else if (LEAVE_KINDS[kind]?.paid) paidLeave += 1;
+    else unpaid += 1;
+  }
+  let totalMinutes = 0, overtimeMinutes = 0, lateDays = 0, lateMinutes = 0, presentWork = 0, offDaysWorked = 0;
+  for (const [k, d] of days) {
+    totalMinutes += d.minutes;
+    if (d.late) {
+      lateDays += 1;
+      lateMinutes += d.late;
+    }
+    if (workDays.includes(weekdayIdx(k))) {
+      presentWork += 1;
+      overtimeMinutes += Math.max(0, d.minutes - standard);
+    } else {
+      offDaysWorked += 1;
+      overtimeMinutes += d.minutes;
+    }
+  }
+  return {
+    workdays: expected.length, presentDays: days.size, presentWork, offDaysWorked, missionDays,
+    absent, unpaid, paidLeave, lateDays, lateMinutes, totalMinutes, overtimeMinutes, noCheckout, standard,
+  };
+}
+
+/* ---------------- tax & insurance (Egypt) ---------------- */
+
+// Yearly salary-tax bands (Income Tax Law 91/2005 as amended by Law 7/2024).
+const TAX_BANDS = [
+  [40000, 0], [55000, 0.10], [70000, 0.15], [200000, 0.20], [400000, 0.225], [1200000, 0.25], [Infinity, 0.275],
+];
+
+/** Yearly tax on yearly taxable income (after the personal exemption). Lower bands fall away for high incomes. */
+function annualTax(taxable) {
+  if (!(taxable > 0)) return 0;
+  const start = taxable > 1200000 ? 5 : taxable > 900000 ? 4 : taxable > 800000 ? 3 : taxable > 700000 ? 2 : taxable > 600000 ? 1 : 0;
+  let tax = 0, prev = 0;
+  for (let i = 0; i < TAX_BANDS.length; i++) {
+    const [cap, rate] = TAX_BANDS[i];
+    const r = i < start ? TAX_BANDS[start][1] : rate;
+    const slice = Math.min(taxable, cap) - prev;
+    if (slice > 0) tax += slice * r;
+    prev = cap;
+    if (taxable <= cap) break;
+  }
+  return tax;
+}
+
+/**
+ * One employee's payroll for month `m` ('YYYY-MM').
+ * att = summarize(...) for that month; adj = { bonus, deduction, advance }.
+ */
+function payrollLine({ m, hr, changes, att, adj, ps, settings }) {
+  const end = monthEnd(m);
+  const sal = salaryOn(changes, end);
+  const basic = Number(sal?.basicSalary || 0);
+  const allowances = Number(sal?.allowances || 0);
+  const full = basic + allowances;
+  // Joined during the month → pay only the days from the hire date.
+  const dim = daysInMonth(m);
+  let payDays = dim;
+  if (hr?.hireDate && hr.hireDate > monthStart(m) && hr.hireDate <= end) payDays = dim - Number(hr.hireDate.slice(8)) + 1;
+  if (hr?.hireDate && hr.hireDate > end) payDays = 0;
+  const earned = round2((full * payDays) / dim);
+
+  const dayRate = full / (ps.dayDivisor || 30);
+  const stdHours = (att?.standard || (settings.workEndMin - settings.workStartMin) || 420) / 60;
+  const hourRate = stdHours > 0 ? dayRate / stdHours : 0;
+
+  const otHours = round2((att?.overtimeMinutes || 0) / 60);
+  const otPay = round2(otHours * hourRate * Number(ps.otMultiplier || 1.5));
+  const absenceDed = ps.deductAbsence ? round2((att?.absent || 0) * dayRate) : 0;
+  const unpaidDed = round2((att?.unpaid || 0) * dayRate);
+  const lateDed = ps.deductLate ? round2(((att?.lateMinutes || 0) / 60) * hourRate) : 0;
+  const bonus = Number(adj?.bonus || 0);
+  const gross = round2(earned + otPay + bonus);
+  const attendanceDed = round2(absenceDed + unpaidDed + lateDed);
+
+  let insWage = 0, insurance = 0;
+  if (ps.insuranceEnabled && hr?.insured !== false && full > 0) {
+    insWage = Number(hr?.insuranceWage || 0) || full;
+    insWage = Math.min(Math.max(insWage, Number(ps.insuranceMin || 0)), Number(ps.insuranceMax || Infinity));
+    insurance = round2((insWage * Number(ps.insuranceRate || 0)) / 100);
+  }
+  const taxableMonthly = Math.max(0, gross - attendanceDed - insurance);
+  let tax = 0;
+  if (ps.taxEnabled && !hr?.taxExempt) {
+    tax = round2(annualTax(taxableMonthly * 12 - Number(ps.taxPersonalExemption || 0)) / 12);
+  }
+  const martyrs = round2(((gross - attendanceDed) * Number(ps.martyrsRate || 0)) / 100);
+  const otherDed = Number(adj?.deduction || 0);
+  const advance = Number(adj?.advance || 0);
+  const totalDed = round2(attendanceDed + insurance + tax + martyrs + otherDed + advance);
+  const net = round2(gross - totalDed);
+  return {
+    hasSalary: !!sal, basic, allowances, full, payDays, dim, earned, dayRate: round2(dayRate), hourRate: round2(hourRate),
+    otHours, otPay, absent: att?.absent || 0, absenceDed, unpaid: att?.unpaid || 0, unpaidDed,
+    lateMinutes: att?.lateMinutes || 0, lateDed, bonus, gross, insWage, insurance, tax, martyrs, otherDed, advance,
+    attendanceDed, totalDed, net,
+  };
+}
+
+/* ---------------- probation (فترة الاختبار) ---------------- */
+
+/** Last day of probation: hire date + N months − 1 day. */
+function probationEnd(hireDate, months) {
+  if (!hireDate || !(Number(months) > 0)) return null;
+  const [y, m, d] = hireDate.split('-').map(Number);
+  const target = new Date(Date.UTC(y, m - 1 + Number(months), 1));
+  const last = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  const end = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), Math.min(d, last)));
+  end.setUTCDate(end.getUTCDate() - 1);
+  return end.toISOString().slice(0, 10);
+}
+
+/**
+ * Probation status of an employee on `today`:
+ * { state: 'none'|'running'|'due'|'overdue'|'confirmed'|'not_confirmed', end, daysLeft }
+ * 'due' = ends within 7 days, 'overdue' = ended without a decision.
+ */
+function probationState(hr, today) {
+  if (hr?.probationResult) return { state: hr.probationResult, end: probationEnd(hr.hireDate, hr.probationMonths), daysLeft: null };
+  const end = probationEnd(hr?.hireDate, hr?.probationMonths ?? 3);
+  if (!end) return { state: 'none', end: null, daysLeft: null };
+  const daysLeft = Math.round((keyToUTC(end) - keyToUTC(today)) / 864e5);
+  return { state: daysLeft < 0 ? 'overdue' : daysLeft <= 7 ? 'due' : 'running', end, daysLeft };
+}
+
+/* ---------------- performance evaluation ---------------- */
+
+const SCORE_LABELS = { 5: 'ممتاز', 4: 'جيد جدًا', 3: 'جيد', 2: 'مقبول', 1: 'ضعيف' };
+const RECOMMENDATIONS = {
+  '': '—', raise: 'يستحق زيادة', promotion: 'يستحق ترقية', keep: 'الاستمرار كما هو', training: 'يحتاج تدريبًا',
+  warning: 'إنذار / متابعة', termination: 'إنهاء الخدمة',
+};
+
+/** Criteria that apply to an employee: for everyone + his department + his job title. */
+function criteriaFor(hr, criteria) {
+  return criteria.filter((c) => c.active && (c.scopeType === 'all'
+    || (c.scopeType === 'department' && c.scopeValue && c.scopeValue === (hr?.department || ''))
+    || (c.scopeType === 'job' && c.scopeValue && c.scopeValue.trim() === (hr?.jobTitle || '').trim())));
+}
+
+/** Weighted total out of 100 from scores 1..5. */
+function evalTotal(scores) {
+  const rated = scores.filter((s) => Number(s.score) >= 1);
+  const w = rated.reduce((a, s) => a + Number(s.weight || 0), 0);
+  if (!w) return 0;
+  return round2(rated.reduce((a, s) => a + Number(s.weight) * (Number(s.score) / 5), 0) / w * 100);
+}
+
+function gradeOf(total) {
+  if (total >= 90) return 'ممتاز';
+  if (total >= 80) return 'جيد جدًا';
+  if (total >= 65) return 'جيد';
+  if (total >= 50) return 'مقبول';
+  return 'ضعيف';
+}
+
+return { addDays, weekdayIdx, monthStart, monthEnd, daysInMonth, maxKey, minKey, serviceLength, LEAVE_KINDS, leaveEntitlement, leaveBalance, workdaysBetween, salaryOn, summarize, TAX_BANDS, annualTax, payrollLine, probationEnd, probationState, SCORE_LABELS, RECOMMENDATIONS, criteriaFor, evalTotal, gradeOf };
+})();
+
 // ===== js/pages/today.js =====
 const __m_js_pages_today = (() => {
-const { attendanceOn, watch, selfieUrl } = __m_js_api;
-const { getState, subscribe } = __m_js_store;
-const { esc, $, todayKey, fmtLongDate, fmtTime, fmtDuration, minutesBetween, badge, flagBadges, modal, icon, mapsLink, toDate, toast, } = __m_js_ui;
+const { attendanceOn, watch, selfieUrl, expiringDocs, pendingRequestsCount, pendingMissionsCount } = __m_js_api;
+const { getState, subscribe, hrOf } = __m_js_store;
+const { probationState } = __m_js_hr;
+const { esc, $, todayKey, fmtLongDate, fmtTime, fmtDuration, minutesBetween, badge, flagBadges, modal, icon, mapsLink, toDate, toast, addDaysKey, DOC_KINDS, } = __m_js_ui;
+
 
 
 
@@ -1017,6 +1535,7 @@ function render(page) {
 
   page.innerHTML = `
     <div class="row"><div><b>${esc(fmtLongDate())}</b> <span class="muted small">— تحديث مباشر</span></div></div>
+    <div id="alerts" class="stack"></div>
     <section class="kpis" id="kpis"></section>
     <section class="card">
       <div class="card-h"><h3>المواقع الآن</h3><span class="muted small">الموجودون في كل موقع حاليًا</span></div>
@@ -1030,6 +1549,32 @@ function render(page) {
       <div class="card-h"><h3>لم يسجلوا حضور اليوم</h3></div>
       <div class="card-b" id="absent"></div>
     </section>`;
+
+  // Things waiting for the owner: requests, missions, documents about to expire.
+  const drawAlerts = async () => {
+    const [docs, nReq, nMis] = await Promise.all([expiringDocs(addDaysKey(today, 30)), pendingRequestsCount(), pendingMissionsCount()]);
+    const el = $('#alerts', page);
+    if (!el) return;
+    const names = new Map(getState().engineers.filter((e) => e.active).map((e) => [e.id, e.name]));
+    const live = docs.filter((d) => names.has(d.uid));
+    const out = [];
+    if (nReq) out.push(`<a class="notice warn" href="#/requests">📥 لديك <b>${nReq}</b> طلب (إجازة / إذن / سلفة) بانتظار ردك ←</a>`);
+    if (nMis) out.push(`<a class="notice warn" href="#/missions">🚗 لديك <b>${nMis}</b> طلب مأمورية بانتظار موافقتك ←</a>`);
+    const prob = getState().engineers.filter((e) => e.active)
+      .map((e) => ({ e, p: probationState(hrOf(e.id), today) }))
+      .filter((x) => x.p.state === 'due' || x.p.state === 'overdue');
+    if (prob.length) {
+      out.push(`<div class="notice warn">🧑‍💼 <b>فترة الاختبار — قرار التثبيت مطلوب:</b> ${prob.map(({ e, p }) =>
+        `<a href="#/employee?id=${esc(e.id)}">${esc(e.name)} (${p.state === 'overdue' ? `انتهت منذ ${-p.daysLeft} يوم` : p.daysLeft === 0 ? 'تنتهي اليوم' : `تنتهي بعد ${p.daysLeft} يوم`})</a>`).join('، ')}</div>`);
+    }
+    if (live.length) {
+      out.push(`<div class="notice warn">📄 <b>مستندات وعقود تنتهي خلال 30 يومًا أو انتهت (${live.length}):</b> ${live.slice(0, 8).map((d) =>
+        `<a href="#/employee?id=${esc(d.uid)}">${esc(names.get(d.uid))} — ${esc(DOC_KINDS[d.kind] || 'مستند')} (${d.expiryDate})</a>`).join('، ')}${live.length > 8 ? '…' : ''}</div>`);
+    }
+    el.innerHTML = out.join('');
+  };
+  let alertsDone = false;
+  drawAlerts().catch(() => {});
 
   const draw = () => {
     const { engineers, sites, settings } = getState();
@@ -1123,13 +1668,21 @@ function render(page) {
   };
   load();
   const unsubAtt = watch('attendance', load);
-  const unsubStore = subscribe(draw);
+  const unsubStore = subscribe(() => {
+    draw();
+    if (getState().ready.hr && getState().ready.engineers && !alertsDone) {
+      alertsDone = true;
+      drawAlerts().catch(() => {});
+    }
+  });
+  const unsubReq = watch('requests', () => drawAlerts().catch(() => {}));
   const tick = setInterval(draw, 60000);
   draw();
 
   return () => {
     unsubAtt();
     unsubStore();
+    unsubReq();
     clearInterval(tick);
   };
 }
@@ -1358,241 +1911,190 @@ function openSiteModal(site) {
 return { render, parseCoords };
 })();
 
-// ===== js/hr.js =====
-const __m_js_hr = (() => {
+// ===== js/evalform.js =====
+const __m_js_evalform = (() => {
+const { saveEvaluation, listCriteria } = __m_js_api;
+const { esc, modal, toast, todayKey } = __m_js_ui;
+const { getState, hrOf } = __m_js_store;
+const { criteriaFor, evalTotal, gradeOf, RECOMMENDATIONS, SCORE_LABELS } = __m_js_hr;
+// Performance-evaluation form (used by the evaluations page and the employee file) + printable sheet.
 
-// HR & payroll calculations (pure functions — no DOM, no Supabase), so they can be unit-tested.
-// Dates are 'YYYY-MM-DD' keys in Cairo time.
 
-const pad = (n) => String(n).padStart(2, '0');
-const keyToUTC = (k) => new Date(`${k}T12:00:00Z`);
-const addDays = (k, n) => {
-  const d = keyToUTC(k);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
-const weekdayIdx = (k) => keyToUTC(k).getUTCDay();
-const monthStart = (m) => `${m}-01`;
-const monthEnd = (m) => {
-  const [y, mo] = m.split('-').map(Number);
-  return `${m}-${pad(new Date(Date.UTC(y, mo, 0)).getUTCDate())}`;
-};
-const daysInMonth = (m) => Number(monthEnd(m).slice(8));
-const maxKey = (...ks) => ks.filter(Boolean).sort().pop();
-const minKey = (...ks) => ks.filter(Boolean).sort()[0];
-const round2 = (x) => Math.round((x + Number.EPSILON) * 100) / 100;
 
-/** Whole years + months between two date keys. */
-function serviceLength(from, to) {
-  if (!from || !to || to < from) return { years: 0, months: 0, totalMonths: 0 };
-  const [y1, m1, d1] = from.split('-').map(Number);
-  const [y2, m2, d2] = to.split('-').map(Number);
-  let total = (y2 - y1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0);
-  if (total < 0) total = 0;
-  return { years: Math.floor(total / 12), months: total % 12, totalMonths: total };
-}
 
-const LEAVE_KINDS = {
-  annual: { label: 'اعتيادية', fromBalance: true, paid: true },
-  casual: { label: 'عارضة', fromBalance: true, paid: true },
-  sick: { label: 'مرضية', fromBalance: false, paid: true },
-  unpaid: { label: 'بدون أجر', fromBalance: false, paid: false },
-  other: { label: 'أخرى (مدفوعة)', fromBalance: false, paid: true },
-};
-
-/**
- * Yearly annual-leave entitlement (Egyptian labour law): nothing before 6 months of service,
- * 15 days in the first year, 21 days after, 30 days after 10 years of service or from age 50.
- */
-function leaveEntitlement(hr, today) {
-  if (hr?.leaveDaysOverride != null && hr.leaveDaysOverride !== '') return Number(hr.leaveDaysOverride);
-  if (!hr?.hireDate) return 21;
-  const s = serviceLength(hr.hireDate, today);
-  if (s.totalMonths < 6) return 0;
-  const age = hr.birthDate ? serviceLength(hr.birthDate, today).years : 0;
-  if (s.years >= 10 || age >= 50) return 30;
-  if (s.years < 1) return 15;
-  return 21;
-}
-
-/** Leave balance for the calendar year of `today`. */
-function leaveBalance(hr, leaves, today) {
-  const year = today.slice(0, 4);
-  const entitlement = leaveEntitlement(hr, today);
-  const opening = Number(hr?.leaveOpening || 0);
-  const inYear = leaves.filter((l) => l.startDate.slice(0, 4) === year);
-  const used = inYear.filter((l) => LEAVE_KINDS[l.kind]?.fromBalance).reduce((a, l) => a + Number(l.days || 0), 0);
-  const casual = inYear.filter((l) => l.kind === 'casual').reduce((a, l) => a + Number(l.days || 0), 0);
-  return { year, entitlement, opening, used, casual, remaining: round2(entitlement + opening - used) };
-}
-
-/** Work days (by the settings' weekdays) between two keys, inclusive. */
-function workdaysBetween(from, to, workDays) {
+const PERIODS = (() => {
+  const y = Number(todayKey().slice(0, 4));
   const out = [];
-  if (!from || !to) return out;
-  for (let k = from; k <= to; k = addDays(k, 1)) if (workDays.includes(weekdayIdx(k))) out.push(k);
+  for (const yr of [y, y - 1]) {
+    out.push(`${yr} — سنوي`, `${yr} — النصف الثاني`, `${yr} — النصف الأول`);
+    for (let q = 4; q >= 1; q--) out.push(`${yr} — الربع ${['الأول', 'الثاني', 'الثالث', 'الرابع'][q - 1]}`);
+  }
+  out.unshift('نهاية فترة الاختبار');
   return out;
-}
+})();
 
-/** Salary in force on `date`: the latest change with effective_date <= date. */
-function salaryOn(changes, date) {
-  let best = null;
-  for (const c of changes) if (c.effectiveDate <= date && (!best || c.effectiveDate >= best.effectiveDate)) best = c;
-  return best;
-}
+const gradeKind = (total) => (total >= 80 ? 'ok' : total >= 65 ? 'info' : total >= 50 ? 'warn' : 'bad');
 
 /**
- * Attendance summary of one employee over [from, to] (to is capped at today).
- * Days with a started/finished mission count as present. Leave days are excused.
+ * Opens the evaluation form. `uid` preselects the employee; `ev` edits an existing evaluation.
+ * Criteria = for everyone + the employee's department + his job title (edited from the evaluations page).
  */
-function summarize({ from, to, today, startKey, rows, missions, leaves, settings }) {
-  const workDays = settings.workDays || [];
-  const standard = Math.max(0, (settings.workEndMin ?? 1020) - (settings.workStartMin ?? 480));
-  const last = minKey(to, today);
-  const first = maxKey(from, startKey);
-  const days = new Map(); // key -> { minutes, late }
-  const touch = (k) => {
-    if (!days.has(k)) days.set(k, { minutes: 0, late: 0 });
-    return days.get(k);
+async function openEvalModal({ uid = null, ev = null, done = () => {} } = {}) {
+  let criteria = [];
+  try {
+    criteria = await listCriteria();
+  } catch (err) {
+    toast(/eval_criteria/.test(err.message) ? 'جداول التقييم غير مفعّلة في قاعدة البيانات بعد.' : err.message, 'bad');
+    return;
+  }
+  const engineers = getState().engineers.filter((e) => e.active || e.id === uid || e.id === ev?.uid);
+  const q = Math.floor((Number(todayKey().slice(5, 7)) - 1) / 3);
+  const defPeriod = `${todayKey().slice(0, 4)} — الربع ${['الأول', 'الثاني', 'الثالث', 'الرابع'][q]}`;
+  let rows = []; // [{ name, weight, score, comment, description }]
+
+  const rowsFor = (id) => {
+    if (ev && ev.uid === id) return ev.scores.map((s) => ({ ...s }));
+    return criteriaFor(hrOf(id), criteria).map((c) => ({ name: c.name, weight: c.weight, score: 0, comment: '', description: c.description }));
   };
-  let noCheckout = 0;
-  for (const r of rows) {
-    if (r.date < from || r.date > to) continue;
-    const d = touch(r.date);
-    d.minutes += r.durationMinutes || 0;
-    if (r.late) d.late = Math.max(d.late, r.lateMinutes || 0);
-    if (r.status === 'auto_closed' || (r.flags || []).includes('no_checkout')) noCheckout += 1;
-  }
-  let missionDays = 0;
-  for (const m of missions) {
-    if (!['active', 'done'].includes(m.status) || m.date < from || m.date > to) continue;
-    const d = touch(m.date);
-    d.minutes += m.durationMinutes || 0;
-    missionDays += 1;
-  }
-  const leaveDay = new Map(); // key -> kind (work days only)
-  for (const l of leaves) {
-    for (let k = maxKey(l.startDate, from); k <= minKey(l.endDate, to); k = addDays(k, 1)) {
-      if (workDays.includes(weekdayIdx(k))) leaveDay.set(k, l.kind);
-    }
-  }
-  const expected = first && last && first <= last ? workdaysBetween(first, last, workDays) : [];
-  let absent = 0, unpaid = 0, paidLeave = 0;
-  for (const k of expected) {
-    if (days.has(k)) continue;
-    const kind = leaveDay.get(k);
-    if (!kind) absent += 1;
-    else if (LEAVE_KINDS[kind]?.paid) paidLeave += 1;
-    else unpaid += 1;
-  }
-  let totalMinutes = 0, overtimeMinutes = 0, lateDays = 0, lateMinutes = 0, presentWork = 0, offDaysWorked = 0;
-  for (const [k, d] of days) {
-    totalMinutes += d.minutes;
-    if (d.late) {
-      lateDays += 1;
-      lateMinutes += d.late;
-    }
-    if (workDays.includes(weekdayIdx(k))) {
-      presentWork += 1;
-      overtimeMinutes += Math.max(0, d.minutes - standard);
-    } else {
-      offDaysWorked += 1;
-      overtimeMinutes += d.minutes;
-    }
-  }
-  return {
-    workdays: expected.length, presentDays: days.size, presentWork, offDaysWorked, missionDays,
-    absent, unpaid, paidLeave, lateDays, lateMinutes, totalMinutes, overtimeMinutes, noCheckout, standard,
-  };
+
+  modal({
+    title: ev ? 'تعديل تقييم أداء' : 'تقييم أداء جديد',
+    wide: true,
+    submitLabel: 'حفظ التقييم',
+    body: `<div class="grid-2">
+        <div class="field"><label>الموظف *</label><select class="input" name="uid" ${ev ? 'disabled' : ''}>
+          <option value="">— اختر —</option>
+          ${engineers.map((e) => `<option value="${esc(e.id)}" ${(ev?.uid || uid) === e.id ? 'selected' : ''}>${esc(e.name)} (${esc(e.code || '')})${hrOf(e.id)?.jobTitle ? ` — ${esc(hrOf(e.id).jobTitle)}` : ''}</option>`).join('')}
+        </select></div>
+        <div class="field"><label>فترة التقييم *</label><input class="input" name="period" list="evalPeriods" value="${esc(ev?.period || defPeriod)}" maxlength="40" />
+          <datalist id="evalPeriods">${PERIODS.map((p) => `<option value="${esc(p)}">`).join('')}</datalist></div>
+        <div class="field"><label>تاريخ التقييم</label><input class="input ltr" type="date" name="date" value="${esc(ev?.evalDate || todayKey())}" /></div>
+        <div class="field"><label>المُقيِّم</label><input class="input" name="evaluator" maxlength="80" value="${esc(ev?.evaluator || '')}" placeholder="مثال: مدير الإدارة الفنية" /></div>
+      </div>
+      <div class="eval-box" data-crit></div>
+      <div class="eval-total" data-total></div>
+      <div class="grid-2">
+        <div class="field"><label>نقاط القوة</label><textarea class="input" name="strengths" rows="2" maxlength="600">${esc(ev?.strengths || '')}</textarea></div>
+        <div class="field"><label>نقاط تحتاج تحسينًا</label><textarea class="input" name="improvements" rows="2" maxlength="600">${esc(ev?.improvements || '')}</textarea></div>
+        <div class="field"><label>التوصية</label><select class="input" name="rec">
+          ${Object.entries(RECOMMENDATIONS).map(([k, v]) => `<option value="${k}" ${(ev?.recommendation || '') === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+        <div class="field"><label>ملاحظات</label><input class="input" name="notes" maxlength="500" value="${esc(ev?.notes || '')}" /></div>
+      </div>`,
+    onOpen: (f) => {
+      const box = f.querySelector('[data-crit]');
+      const totalEl = f.querySelector('[data-total]');
+      const showTotal = () => {
+        const t = evalTotal(rows);
+        const rated = rows.filter((r) => r.score >= 1).length;
+        totalEl.innerHTML = rows.length
+          ? `النتيجة: <b>${t}%</b> — <b>${gradeOf(t)}</b> <span class="muted small">(تم تقييم ${rated} من ${rows.length} بند)</span>`
+          : '';
+      };
+      const draw = () => {
+        const id = f.uid.value;
+        if (!id) {
+          box.innerHTML = '<div class="empty">اختر الموظف لتظهر بنود تقييمه.</div>';
+          totalEl.innerHTML = '';
+          return;
+        }
+        if (!rows.length) {
+          const hr = hrOf(id);
+          box.innerHTML = `<div class="empty">لا توجد بنود تقييم لهذا الموظف${hr?.jobTitle ? ` (${esc(hr.jobTitle)})` : ''}.
+            أضف البنود من صفحة «تقييم الأداء» ← «بنود التقييم».</div>`;
+          totalEl.innerHTML = '';
+          return;
+        }
+        box.innerHTML = `<table class="t eval-t"><thead><tr><th>البند</th><th>الوزن</th><th>الدرجة</th><th>تعليق</th></tr></thead><tbody>
+          ${rows.map((r, i) => `<tr>
+            <td><b>${esc(r.name)}</b>${r.description ? `<div class="muted small">${esc(r.description)}</div>` : ''}</td>
+            <td class="num">${r.weight}</td>
+            <td><div class="score-pick" data-i="${i}">${[1, 2, 3, 4, 5].map((n) =>
+              `<button type="button" class="${Number(r.score) === n ? 'on' : ''}" data-s="${n}" title="${SCORE_LABELS[n]}">${n}</button>`).join('')}</div>
+              <div class="muted small">${r.score ? SCORE_LABELS[r.score] : 'لم يُقيَّم'}</div></td>
+            <td><input class="input sm" data-c="${i}" maxlength="200" value="${esc(r.comment || '')}" /></td></tr>`).join('')}
+          </tbody></table>
+          <p class="hint">1 = ضعيف، 2 = مقبول، 3 = جيد، 4 = جيد جدًا، 5 = ممتاز. النتيجة نسبة مئوية مرجّحة بأوزان البنود.</p>`;
+        showTotal();
+      };
+      box.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-s]');
+        if (!b) return;
+        const i = Number(b.parentElement.dataset.i);
+        rows[i].score = Number(b.dataset.s);
+        draw();
+      });
+      box.addEventListener('input', (e) => {
+        if (e.target.dataset.c != null) rows[Number(e.target.dataset.c)].comment = e.target.value;
+      });
+      f.uid.addEventListener('change', () => {
+        rows = f.uid.value ? rowsFor(f.uid.value) : [];
+        draw();
+      });
+      rows = f.uid.value ? rowsFor(f.uid.value) : [];
+      draw();
+    },
+    onSubmit: async (f) => {
+      const id = ev?.uid || f.uid.value;
+      if (!id) throw new Error('اختر الموظف.');
+      if (!f.period.value.trim()) throw new Error('اكتب فترة التقييم.');
+      if (!rows.length) throw new Error('لا توجد بنود تقييم لهذا الموظف.');
+      if (rows.some((r) => !(r.score >= 1))) throw new Error('قيّم كل البنود (من 1 إلى 5).');
+      const total = evalTotal(rows);
+      await saveEvaluation(ev?.id || null, {
+        uid: id, period: f.period.value.trim(), evalDate: f.date.value || todayKey(), evaluator: f.evaluator.value.trim(),
+        scores: rows.map(({ name, weight, score, comment }) => ({ name, weight, score, comment: comment || '' })),
+        total, grade: gradeOf(total), strengths: f.strengths.value.trim(), improvements: f.improvements.value.trim(),
+        recommendation: f.rec.value, notes: f.notes.value.trim(),
+      });
+      toast('تم حفظ التقييم', 'ok');
+      done();
+    },
+  });
 }
 
-/* ---------------- tax & insurance (Egypt) ---------------- */
-
-// Yearly salary-tax bands (Income Tax Law 91/2005 as amended by Law 7/2024).
-const TAX_BANDS = [
-  [40000, 0], [55000, 0.10], [70000, 0.15], [200000, 0.20], [400000, 0.225], [1200000, 0.25], [Infinity, 0.275],
-];
-
-/** Yearly tax on yearly taxable income (after the personal exemption). Lower bands fall away for high incomes. */
-function annualTax(taxable) {
-  if (!(taxable > 0)) return 0;
-  const start = taxable > 1200000 ? 5 : taxable > 900000 ? 4 : taxable > 800000 ? 3 : taxable > 700000 ? 2 : taxable > 600000 ? 1 : 0;
-  let tax = 0, prev = 0;
-  for (let i = 0; i < TAX_BANDS.length; i++) {
-    const [cap, rate] = TAX_BANDS[i];
-    const r = i < start ? TAX_BANDS[start][1] : rate;
-    const slice = Math.min(taxable, cap) - prev;
-    if (slice > 0) tax += slice * r;
-    prev = cap;
-    if (taxable <= cap) break;
-  }
-  return tax;
+/** Opens a printable evaluation sheet in a new window. */
+function printEvaluation(ev) {
+  const e = getState().engineers.find((x) => x.id === ev.uid) || { name: '—', code: '' };
+  const hr = hrOf(ev.uid) || {};
+  const company = getState().settings.companyName || '';
+  const w = window.open('', '_blank');
+  if (!w) return toast('اسمح للمتصفح بفتح النوافذ المنبثقة للطباعة.', 'bad');
+  w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقييم أداء — ${esc(e.name)}</title>
+    <style>body{font-family:Tahoma,Arial,sans-serif;margin:28px;color:#111}h1{font-size:20px;margin:0 0 4px}
+    table{width:100%;border-collapse:collapse;margin:14px 0}td,th{border:1px solid #bbb;padding:7px 9px;text-align:right;font-size:13px}
+    th{background:#eef2f6}.meta{display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;font-size:13px}.big{font-size:18px;font-weight:bold}
+    .sig{display:flex;justify-content:space-between;margin-top:48px;font-size:13px}.sig div{width:40%;border-top:1px solid #333;padding-top:6px;text-align:center}
+    @media print{button{display:none}}</style></head><body>
+    <button onclick="print()">طباعة</button>
+    <h1>نموذج تقييم أداء</h1><div style="color:#555;margin-bottom:12px">${esc(company)}</div>
+    <div class="meta"><div>الموظف: <b>${esc(e.name)}</b> (${esc(e.code || '')})</div><div>الوظيفة: ${esc(hr.jobTitle || '—')}</div>
+      <div>الإدارة / القسم: ${esc([hr.department, hr.section].filter(Boolean).join(' / ') || '—')}</div><div>فترة التقييم: ${esc(ev.period)}</div>
+      <div>تاريخ التقييم: ${esc(ev.evalDate)}</div><div>المُقيِّم: ${esc(ev.evaluator || '—')}</div></div>
+    <table><thead><tr><th>البند</th><th>الوزن</th><th>الدرجة (من 5)</th><th>التقدير</th><th>تعليق</th></tr></thead><tbody>
+      ${ev.scores.map((s) => `<tr><td>${esc(s.name)}</td><td>${s.weight}</td><td>${s.score}</td><td>${SCORE_LABELS[s.score] || ''}</td><td>${esc(s.comment || '')}</td></tr>`).join('')}
+    </tbody></table>
+    <p class="big">النتيجة: ${ev.total}% — ${esc(ev.grade)}</p>
+    ${ev.strengths ? `<p><b>نقاط القوة:</b> ${esc(ev.strengths)}</p>` : ''}
+    ${ev.improvements ? `<p><b>نقاط تحتاج تحسينًا:</b> ${esc(ev.improvements)}</p>` : ''}
+    <p><b>التوصية:</b> ${esc(RECOMMENDATIONS[ev.recommendation] || '—')}</p>
+    ${ev.notes ? `<p><b>ملاحظات:</b> ${esc(ev.notes)}</p>` : ''}
+    <div class="sig"><div>توقيع المُقيِّم</div><div>توقيع الموظف بالعلم</div></div>
+    </body></html>`);
+  w.document.close();
 }
 
-/**
- * One employee's payroll for month `m` ('YYYY-MM').
- * att = summarize(...) for that month; adj = { bonus, deduction, advance }.
- */
-function payrollLine({ m, hr, changes, att, adj, ps, settings }) {
-  const end = monthEnd(m);
-  const sal = salaryOn(changes, end);
-  const basic = Number(sal?.basicSalary || 0);
-  const allowances = Number(sal?.allowances || 0);
-  const full = basic + allowances;
-  // Joined during the month → pay only the days from the hire date.
-  const dim = daysInMonth(m);
-  let payDays = dim;
-  if (hr?.hireDate && hr.hireDate > monthStart(m) && hr.hireDate <= end) payDays = dim - Number(hr.hireDate.slice(8)) + 1;
-  if (hr?.hireDate && hr.hireDate > end) payDays = 0;
-  const earned = round2((full * payDays) / dim);
-
-  const dayRate = full / (ps.dayDivisor || 30);
-  const stdHours = (att?.standard || (settings.workEndMin - settings.workStartMin) || 420) / 60;
-  const hourRate = stdHours > 0 ? dayRate / stdHours : 0;
-
-  const otHours = round2((att?.overtimeMinutes || 0) / 60);
-  const otPay = round2(otHours * hourRate * Number(ps.otMultiplier || 1.5));
-  const absenceDed = ps.deductAbsence ? round2((att?.absent || 0) * dayRate) : 0;
-  const unpaidDed = round2((att?.unpaid || 0) * dayRate);
-  const lateDed = ps.deductLate ? round2(((att?.lateMinutes || 0) / 60) * hourRate) : 0;
-  const bonus = Number(adj?.bonus || 0);
-  const gross = round2(earned + otPay + bonus);
-  const attendanceDed = round2(absenceDed + unpaidDed + lateDed);
-
-  let insWage = 0, insurance = 0;
-  if (ps.insuranceEnabled && hr?.insured !== false && full > 0) {
-    insWage = Number(hr?.insuranceWage || 0) || full;
-    insWage = Math.min(Math.max(insWage, Number(ps.insuranceMin || 0)), Number(ps.insuranceMax || Infinity));
-    insurance = round2((insWage * Number(ps.insuranceRate || 0)) / 100);
-  }
-  const taxableMonthly = Math.max(0, gross - attendanceDed - insurance);
-  let tax = 0;
-  if (ps.taxEnabled && !hr?.taxExempt) {
-    tax = round2(annualTax(taxableMonthly * 12 - Number(ps.taxPersonalExemption || 0)) / 12);
-  }
-  const martyrs = round2(((gross - attendanceDed) * Number(ps.martyrsRate || 0)) / 100);
-  const otherDed = Number(adj?.deduction || 0);
-  const advance = Number(adj?.advance || 0);
-  const totalDed = round2(attendanceDed + insurance + tax + martyrs + otherDed + advance);
-  const net = round2(gross - totalDed);
-  return {
-    hasSalary: !!sal, basic, allowances, full, payDays, dim, earned, dayRate: round2(dayRate), hourRate: round2(hourRate),
-    otHours, otPay, absent: att?.absent || 0, absenceDed, unpaid: att?.unpaid || 0, unpaidDed,
-    lateMinutes: att?.lateMinutes || 0, lateDed, bonus, gross, insWage, insurance, tax, martyrs, otherDed, advance,
-    attendanceDed, totalDed, net,
-  };
-}
-
-return { addDays, weekdayIdx, monthStart, monthEnd, daysInMonth, maxKey, minKey, serviceLength, LEAVE_KINDS, leaveEntitlement, leaveBalance, workdaysBetween, salaryOn, summarize, TAX_BANDS, annualTax, payrollLine };
+return { PERIODS, gradeKind, openEvalModal, printEvaluation };
 })();
 
 // ===== js/pages/employee.js =====
 const __m_js_pages_employee = (() => {
-const { saveHr, addSalaryChange, deleteSalaryChange, addLeave, deleteLeave, attendanceForUser, missionsBetween } = __m_js_api;
+const { saveHr, addSalaryChange, deleteSalaryChange, addLeave, deleteLeave, attendanceForUser, missionsBetween, approvedPermissions, listDocs, saveDoc, deleteDoc, docUrl, saveProbation, listEvaluations, deleteEvaluation } = __m_js_api;
 const { getState, subscribe, hrOf, salariesOf, leavesOf, siteName, refresh } = __m_js_store;
-const { esc, $, badge, icon, modal, toast, confirmDialog, todayKey, dateKey, toDate, fmtHours, fmtDuration, parseHHMM } = __m_js_ui;
-const { LEAVE_KINDS, leaveBalance, leaveEntitlement, salaryOn, serviceLength, summarize, workdaysBetween, addDays, monthEnd, maxKey, minKey, } = __m_js_hr;
+const { esc, $, badge, icon, modal, toast, confirmDialog, todayKey, dateKey, toDate, fmtHours, fmtDuration, parseHHMM, addDaysKey, DOC_KINDS } = __m_js_ui;
+const { LEAVE_KINDS, leaveBalance, leaveEntitlement, salaryOn, serviceLength, summarize, workdaysBetween, addDays, monthEnd, maxKey, minKey, probationState, RECOMMENDATIONS, } = __m_js_hr;
+const { openEvalModal, printEvaluation, gradeKind } = __m_js_evalform;
 // Employee file: job data, salary & raises history, leave balance, and a monthly report since hiring.
+
 
 
 
@@ -1619,6 +2121,8 @@ function render(page) {
   const id = new URLSearchParams(location.hash.split('?')[1] || '').get('id');
   let report = null;
   let loading = false;
+  let docs = null;
+  let evals = null;
 
   page.innerHTML = `<div id="body" class="stack"><div class="empty"><span class="spinner"></span></div></div>`;
 
@@ -1653,6 +2157,8 @@ function render(page) {
         ${kpi('آخر زيادة', lastRaise(sal), '')}
       </section>
 
+      ${probationCard(hr, today)}
+
       <section class="card"><div class="card-h"><h3>البيانات الوظيفية</h3></div>
         <div class="card-b"><dl class="facts">
           ${fact('الوظيفة', esc(hr.jobTitle || '—'))}
@@ -1685,9 +2191,72 @@ function render(page) {
         </div>
         <div class="card-b flush table-wrap">${leaveTable(lv)}</div></section>
 
+      <section class="card"><div class="card-h"><h3>${icon('star')} تقييمات الأداء</h3>
+        <button class="btn primary sm" data-act="eval">${icon('plus')} تقييم جديد</button></div>
+        <div class="card-b flush table-wrap" id="evals"></div></section>
+
+      <section class="card"><div class="card-h"><h3>${icon('file')} المستندات والعقود</h3>
+        <button class="btn primary sm" data-act="doc">${icon('plus')} إضافة مستند</button></div>
+        <div class="card-b" id="docs"></div></section>
+
       <section class="card"><div class="card-h"><h3>تقرير الحضور منذ التعيين</h3><span class="muted small" id="repMeta"></span></div>
         <div class="card-b flush table-wrap" id="report"><div class="empty"><span class="spinner"></span></div></div></section>`;
     drawReport();
+    drawDocs();
+    drawEvals();
+  };
+
+  const loadEvals = async () => {
+    try {
+      evals = await listEvaluations(id);
+    } catch (err) {
+      evals = { error: /evaluations/.test(err.message) ? 'جداول التقييم غير مفعّلة في قاعدة البيانات بعد.' : err.message };
+    }
+    drawEvals();
+  };
+  const drawEvals = () => {
+    const el = $('#evals', page);
+    if (!el) return;
+    if (!evals) return (el.innerHTML = '<div class="empty"><span class="spinner"></span></div>');
+    if (evals.error) return (el.innerHTML = `<div class="empty">${esc(evals.error)}</div>`);
+    el.innerHTML = evals.length
+      ? `<table class="t"><thead><tr><th>الفترة</th><th>التاريخ</th><th>النتيجة</th><th>التوصية</th><th>المُقيِّم</th><th></th></tr></thead><tbody>
+        ${evals.map((v) => `<tr><td><b>${esc(v.period)}</b></td><td class="num">${esc(v.evalDate)}</td>
+          <td>${badge(`${v.total}% — ${v.grade}`, gradeKind(v.total))}</td><td class="small">${esc(RECOMMENDATIONS[v.recommendation] || '—')}</td>
+          <td class="small">${esc(v.evaluator || '—')}</td>
+          <td class="actions"><button class="btn sm" data-print-eval="${esc(v.id)}" title="طباعة">${icon('file')}</button>
+            <button class="btn sm" data-edit-eval="${esc(v.id)}" title="تعديل">${icon('edit')}</button>
+            <button class="btn sm danger" data-del-eval="${esc(v.id)}" title="حذف">${icon('trash')}</button></td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty">لم يُقيَّم بعد.</div>';
+  };
+
+  const loadDocs = async () => {
+    try {
+      docs = await listDocs(id);
+    } catch (err) {
+      docs = { error: /employee_documents/.test(err.message) ? 'جدول المستندات غير موجود في قاعدة البيانات بعد.' : err.message };
+    }
+    drawDocs();
+  };
+  const drawDocs = () => {
+    const el = $('#docs', page);
+    if (!el) return;
+    if (!docs) return (el.innerHTML = '<div class="empty"><span class="spinner"></span></div>');
+    if (docs.error) return (el.innerHTML = `<div class="empty">${esc(docs.error)}</div>`);
+    if (!docs.length) {
+      el.innerHTML = '<div class="empty">لا توجد مستندات بعد. أضف العقد وصورة البطاقة والمؤهل… مع تاريخ الانتهاء ليصلك تنبيه قبلها بشهر.</div>';
+      return;
+    }
+    el.innerHTML = `<div class="doc-list">${docs.map((d) => `<div class="doc-row">
+      <div class="doc-main"><b>${esc(DOC_KINDS[d.kind] || 'مستند')}${d.title ? ` — ${esc(d.title)}` : ''}</b>
+        <small>${[d.number ? `رقم: <span class="ltr">${esc(d.number)}</span>` : '', d.issueDate ? `الإصدار: <span class="ltr">${d.issueDate}</span>` : '',
+          d.expiryDate ? `الانتهاء: <span class="ltr">${d.expiryDate}</span>` : 'بدون تاريخ انتهاء'].filter(Boolean).join(' · ')}</small>
+        ${d.notes ? `<small>${esc(d.notes)}</small>` : ''}</div>
+      ${expiryBadge(d.expiryDate)}
+      ${d.filePath ? `<button class="btn sm" data-open-doc="${esc(d.id)}">${icon('file')} فتح</button>` : '<span class="muted small">بدون ملف</span>'}
+      <button class="btn sm" data-edit-doc="${esc(d.id)}" title="تعديل">${icon('edit')}</button>
+      <button class="btn sm danger" data-del-doc="${esc(d.id)}" title="حذف">${icon('trash')}</button>
+    </div>`).join('')}</div>`;
   };
 
   const loadReport = async () => {
@@ -1698,8 +2267,8 @@ function render(page) {
       const hr = hrOf(id);
       const today = todayKey();
       const from = countFrom(e, hr) || today;
-      const [rows, missions] = await Promise.all([attendanceForUser(id, from, today), missionsBetween(from, today, id)]);
-      report = { from, rows, missions };
+      const [rows, missions, perms] = await Promise.all([attendanceForUser(id, from, today), missionsBetween(from, today, id), approvedPermissions(from, today, id)]);
+      report = { from, rows, missions, perms };
       drawReport();
     } catch (err) {
       const el = $('#report', page);
@@ -1720,7 +2289,7 @@ function render(page) {
       const from = maxKey(`${m}-01`, report.from);
       const to = minKey(monthEnd(m), today);
       const a = summarize({
-        from, to, today, startKey: countFrom(e, hr), rows: report.rows, missions: report.missions, leaves: leavesOf(id), settings,
+        from, to, today, startKey: countFrom(e, hr), rows: report.rows, missions: report.missions, leaves: leavesOf(id), settings, permissions: report.perms,
       });
       out.push({ m, ...a });
     }
@@ -1765,6 +2334,35 @@ function render(page) {
     if (b.dataset.act === 'raise') openRaiseModal(e);
     if (b.dataset.act === 'leave') openLeaveModal(e);
     if (b.dataset.act === 'xls') exportFile(e, months());
+    const findEval = (k) => (Array.isArray(evals) ? evals.find((v) => v.id === k) : null);
+    if (b.dataset.act === 'eval') openEvalModal({ uid: id, done: loadEvals });
+    if (b.dataset.printEval) printEvaluation(findEval(b.dataset.printEval));
+    if (b.dataset.editEval) openEvalModal({ ev: findEval(b.dataset.editEval), done: loadEvals });
+    if (b.dataset.delEval && await confirmDialog('حذف التقييم', 'حذف هذا التقييم نهائيًا؟', { confirmLabel: 'حذف', danger: true })) {
+      await deleteEvaluation(b.dataset.delEval);
+      loadEvals();
+    }
+    if (b.dataset.probation) await openProbationModal(e, b.dataset.probation);
+    const doc = (k) => (Array.isArray(docs) ? docs.find((d) => d.id === k) : null);
+    if (b.dataset.act === 'doc') openDocModal(e, null, loadDocs);
+    if (b.dataset.editDoc) openDocModal(e, doc(b.dataset.editDoc), loadDocs);
+    if (b.dataset.openDoc) {
+      const w = window.open('', '_blank');
+      const url = await docUrl(doc(b.dataset.openDoc)?.filePath);
+      if (url && w) w.location.href = url;
+      else {
+        w?.close();
+        toast('تعذّر فتح الملف', 'bad');
+      }
+    }
+    if (b.dataset.delDoc) {
+      const d = doc(b.dataset.delDoc);
+      if (d && await confirmDialog('حذف المستند', `حذف «${DOC_KINDS[d.kind] || 'المستند'}» وملفه نهائيًا؟ لا يمكن التراجع.`, { confirmLabel: 'حذف', danger: true })) {
+        await deleteDoc(d);
+        toast('تم الحذف', 'ok');
+        loadDocs();
+      }
+    }
     if (b.dataset.delSalary) {
       if (await confirmDialog('حذف السطر', 'حذف هذا السطر من سجل الراتب؟', { confirmLabel: 'حذف', danger: true })) {
         await deleteSalaryChange(b.dataset.delSalary);
@@ -1787,6 +2385,8 @@ function render(page) {
   });
   draw();
   if (getState().ready.engineers && getState().ready.hr && !getState().hrMissing) loadReport();
+  loadDocs();
+  loadEvals();
   return unsub;
 }
 
@@ -1845,7 +2445,8 @@ function openHrModal(e) {
     body: `
       <div class="grid-2">
         <div class="field"><label>الوظيفة</label><input class="input" name="jobTitle" value="${esc(hr.jobTitle || '')}" placeholder="مثال: مهندس مدني" list="jobList" /></div>
-        <div></div>
+        <div class="field"><label>مدة فترة الاختبار (شهر)</label><input class="input ltr" type="number" min="0" max="6" step="1" name="probationMonths" value="${esc(hr.probationMonths ?? 3)}" />
+          <span class="hint">تبدأ من تاريخ التعيين، وتصلك رسالة قبل نهايتها بأسبوع. 0 = بدون فترة اختبار.</span></div>
         ${deptFields(hr)}
         <div class="field"><label>تاريخ التعيين</label><input class="input ltr" type="date" name="hireDate" value="${esc(hr.hireDate || '')}" /></div>
         <div class="field"><label>تاريخ الميلاد (اختياري — لرصيد الإجازات بعد سن 50)</label><input class="input ltr" type="date" name="birthDate" value="${esc(hr.birthDate || '')}" /></div>
@@ -1867,6 +2468,7 @@ function openHrModal(e) {
         leaveOpening: Number(v('leaveOpening') || 0), leaveDaysOverride: v('leaveDaysOverride') === '' ? null : Number(v('leaveDaysOverride')),
         insuranceWage: v('insuranceWage') === '' ? null : Number(v('insuranceWage')),
         insured: f.insured.checked, taxExempt: f.taxExempt.checked, notes: v('notes'),
+        probationMonths: Math.min(6, Math.max(0, Math.round(Number(v('probationMonths') || 0)))),
       });
       refresh('hr');
       toast('تم الحفظ', 'ok');
@@ -1911,6 +2513,102 @@ function openRaiseModal(e) {
       });
       refresh('hr');
       toast('تم تسجيل الراتب', 'ok');
+    },
+  });
+}
+
+/** Probation card in the employee file: status + decision buttons. */
+function probationCard(hr, today) {
+  const p = probationState(hr, today);
+  if (p.state === 'none') return '';
+  const decided = p.state === 'confirmed' || p.state === 'not_confirmed';
+  const status = {
+    running: badge(`في فترة الاختبار — تنتهي بعد ${p.daysLeft} يوم`, 'info'),
+    due: badge(p.daysLeft === 0 ? 'فترة الاختبار تنتهي اليوم' : `فترة الاختبار تنتهي بعد ${p.daysLeft} يوم`, 'warn'),
+    overdue: badge(`انتهت فترة الاختبار منذ ${-p.daysLeft} يوم — لم يُتخذ قرار`, 'bad'),
+    confirmed: badge('تم التثبيت بعد فترة الاختبار', 'ok'),
+    not_confirmed: badge('لم يُثبَّت بعد فترة الاختبار', 'bad'),
+  }[p.state];
+  if (decided && hr.probationDecided && today > addDays(hr.probationDecided, 60)) return ''; // old news
+  return `<section class="card"><div class="card-b probation">
+      <b>فترة الاختبار:</b> ${status}
+      <span class="muted small">${hr.probationMonths} أشهر من ${esc(hr.hireDate)} حتى ${esc(p.end)}${hr.probationNote ? ` · ${esc(hr.probationNote)}` : ''}</span>
+      <span style="margin-inline-start:auto" class="row">
+      ${decided ? `<button class="btn sm" data-probation="undo">تراجع عن القرار</button>`
+        : `<button class="btn primary sm" data-probation="confirmed">${icon('check')} تثبيت</button>
+           <button class="btn danger sm" data-probation="not_confirmed">${icon('x')} عدم التثبيت</button>`}</span>
+    </div></section>`;
+}
+
+function openProbationModal(e, result) {
+  if (result === 'undo') {
+    return saveProbation(e.id, null, '').then(() => {
+      refresh('hr');
+      toast('تم التراجع', 'ok');
+    });
+  }
+  const ok = result === 'confirmed';
+  modal({
+    title: ok ? `تثبيت ${e.name}` : `عدم تثبيت ${e.name}`,
+    submitLabel: ok ? 'تثبيت' : 'تأكيد عدم التثبيت',
+    danger: !ok,
+    body: `<p style="margin-top:0">${ok ? 'سيُسجَّل أن الموظف اجتاز فترة الاختبار وتم تثبيته.'
+      : 'سيُسجَّل أن الموظف لم يجتز فترة الاختبار. (إيقاف حسابه في التطبيق يتم من صفحة الموظفين إذا أردت.)'}</p>
+      <div class="field"><label>ملاحظة (اختياري)</label><input class="input" name="note" maxlength="300" /></div>`,
+    onSubmit: async (f) => {
+      await saveProbation(e.id, result, f.note.value.trim());
+      refresh('hr');
+      toast('تم الحفظ', 'ok');
+    },
+  });
+}
+
+/** Badge for a document's expiry: expired / soon (≤ 30 days) / valid. */
+function expiryBadge(date) {
+  if (!date) return '';
+  const days = Math.round((new Date(`${date}T12:00:00Z`) - new Date(`${todayKey()}T12:00:00Z`)) / 864e5);
+  if (days < 0) return badge(`انتهى منذ ${-days} يوم`, 'bad');
+  if (days === 0) return badge('ينتهي اليوم', 'bad');
+  if (days <= 30) return badge(`ينتهي بعد ${days} يوم`, 'warn');
+  return badge('ساري', 'ok');
+}
+
+function openDocModal(e, d, done) {
+  d = d || { kind: 'contract' };
+  modal({
+    title: d.id ? 'تعديل مستند' : `إضافة مستند — ${e.name}`,
+    body: `<div class="grid-2">
+        <div class="field"><label>النوع *</label><select class="input" name="kind">
+          ${Object.entries(DOC_KINDS).map(([k, v]) => `<option value="${k}" ${d.kind === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+        <div class="field"><label>الوصف</label><input class="input" name="title" maxlength="120" value="${esc(d.title || '')}" placeholder="مثال: عقد سنة 2026" /></div>
+        <div class="field"><label>الرقم</label><input class="input ltr" name="number" maxlength="60" value="${esc(d.number || '')}" /></div>
+        <div class="field"><label>تاريخ الإصدار / البداية</label><input class="input ltr" type="date" name="issue" value="${esc(d.issueDate || '')}" /></div>
+        <div class="field"><label>تاريخ الانتهاء</label><input class="input ltr" type="date" name="expiry" value="${esc(d.expiryDate || '')}" />
+          <span class="hint">يصلك تنبيه على تليجرام قبل الانتهاء بشهر.</span></div>
+        <div class="field"><label>الملف (صورة أو PDF، حتى 10 ميجا)</label>
+          <input class="input" type="file" name="file" accept="image/*,application/pdf" />
+          ${d.filePath ? '<span class="hint">يوجد ملف محفوظ — اختر ملفًا جديدًا فقط إذا أردت استبداله.</span>' : ''}</div>
+      </div>
+      <div class="field"><label>ملاحظات</label><input class="input" name="notes" maxlength="300" value="${esc(d.notes || '')}" /></div>`,
+    onOpen: (f) => {
+      // Contracts usually run a year: suggest an end date from the start date.
+      const suggest = () => {
+        if (f.kind.value === 'contract' && f.issue.value && !f.expiry.value) f.expiry.value = addDaysKey(f.issue.value, 364);
+      };
+      f.kind.addEventListener('change', suggest);
+      f.issue.addEventListener('change', suggest);
+    },
+    onSubmit: async (f) => {
+      const file = f.file.files[0] || null;
+      if (file && file.size > 10 * 1024 * 1024) throw new Error('حجم الملف أكبر من 10 ميجا.');
+      if (file && !/^image\/|application\/pdf/.test(file.type)) throw new Error('الملف يجب أن يكون صورة أو PDF.');
+      if (f.issue.value && f.expiry.value && f.expiry.value < f.issue.value) throw new Error('تاريخ الانتهاء قبل تاريخ الإصدار.');
+      await saveDoc(d.id || null, e.id, {
+        kind: f.kind.value, title: f.title.value.trim(), number: f.number.value.trim(), issueDate: f.issue.value,
+        expiryDate: f.expiry.value, notes: f.notes.value.trim(), filePath: d.filePath,
+      }, file);
+      toast('تم الحفظ', 'ok');
+      done();
     },
   });
 }
@@ -2021,12 +2719,12 @@ function hrDatalists() {
   return `<datalist id="jobList">${jobs.map((d) => `<option value="${esc(d)}"></option>`).join('')}</datalist>`;
 }
 
-return { money, monthLabel, serviceText, hrSettings, countFrom, render, openHrModal, openRaiseModal, openLeaveModal, DEPARTMENTS, deptLabel, deptFields, wireDeptFields, hrDatalists };
+return { money, monthLabel, serviceText, hrSettings, countFrom, render, openHrModal, openRaiseModal, expiryBadge, openDocModal, openLeaveModal, DEPARTMENTS, deptLabel, deptFields, wireDeptFields, hrDatalists };
 })();
 
 // ===== js/pages/engineers.js =====
 const __m_js_pages_engineers = (() => {
-const { fn, updateEngineer, saveHr, addSalaryChange, attendanceRange, missionsBetween } = __m_js_api;
+const { fn, updateEngineer, saveHr, addSalaryChange, attendanceRange, missionsBetween, approvedPermissions } = __m_js_api;
 const { getState, subscribe, refresh, hrOf, salariesOf, leavesOf } = __m_js_store;
 const { esc, $, badge, icon, modal, toast, confirmDialog, withBusy, todayKey, fmtHours } = __m_js_ui;
 const { leaveBalance, salaryOn, summarize } = __m_js_hr;
@@ -2042,9 +2740,9 @@ function render(page) {
   let month = null; // this month's attendance, for hours / overtime
   const today = todayKey();
   const from = `${today.slice(0, 8)}01`;
-  Promise.all([attendanceRange(from, today), missionsBetween(from, today)])
-    .then(([rows, missions]) => {
-      month = { rows, missions };
+  Promise.all([attendanceRange(from, today), missionsBetween(from, today), approvedPermissions(from, today)])
+    .then(([rows, missions, perms]) => {
+      month = { rows, missions, perms };
       draw();
     })
     .catch(() => {});
@@ -2133,7 +2831,7 @@ function render(page) {
       return summarize({
         from, to: today, today, startKey: countFrom(e, hrOf(e.id)),
         rows: month.rows.filter((r) => r.uid === e.id), missions: month.missions.filter((m) => m.uid === e.id),
-        leaves: leavesOf(e.id), settings,
+        leaves: leavesOf(e.id), settings, permissions: (month.perms || []).filter((p) => p.uid === e.id),
       });
     };
     $('#list', page).innerHTML = `<table class="t emp"><thead><tr>
@@ -2390,9 +3088,15 @@ return { render };
 // ===== js/pages/missions.js =====
 const __m_js_pages_missions = (() => {
 const { fn, listMissions, selfieUrl, watch } = __m_js_api;
-const { esc, $, badge, fmtDateTime, fmtDuration, fmtTime, icon, modal, toast, todayKey, addDaysKey, MISSION_STATUS, mapsLink } = __m_js_ui;
+const { esc, $, badge, flagBadges, fmtDateTime, fmtDuration, fmtTime, icon, modal, toast, todayKey, addDaysKey, MISSION_STATUS, mapsLink } = __m_js_ui;
+const { getState } = __m_js_store;
+const { parseCoords } = __m_js_pages_sites;
 // المأموريات: requests waiting for the admin's decision, missions running now, and the last 30 days.
 
+
+
+
+const CAIRO = [30.0444, 31.2357];
 
 function render(page) {
   let rows = [];
@@ -2400,8 +3104,8 @@ function render(page) {
   const from = addDaysKey(todayKey(), -30);
 
   page.innerHTML = `
-    <div class="notice">يطلب الموظف المأمورية من التطبيق ← توافق عليها أو ترفضها من هنا ← بعد الموافقة يبدؤها وينهيها من أي مكان بصورة شخصية وموقعه. يصلك إشعار على تليجرام مع كل خطوة.
-      المأموريات متاحة فقط للموظفين المسموح لهم بذلك من صفحة الموظفين.</div>
+    <div class="notice">يطلب الموظف المأمورية من التطبيق ← توافق عليها وتحدد <b>مكان الجهة على الخريطة</b> ← لا يستطيع تسجيل «الوصول» إلا وهو داخل دائرة المكان،
+      وإذا كانت المأمورية أول عمل في يومه يُحسب عليه التأخير مثل الحضور العادي ← إذا أنهاها بعيدًا عن المكان تظهر علامة تحذير. يصلك إشعار على تليجرام مع كل خطوة.</div>
     <section class="card">
       <div class="card-h"><h3>${icon('car')} طلبات بانتظار موافقتك</h3><span id="pendingCount"></span></div>
       <div class="card-b" id="pending"><div class="empty"><span class="spinner"></span></div></div>
@@ -2417,8 +3121,13 @@ function render(page) {
 
   const status = (m) => {
     const [label, kind] = MISSION_STATUS[m.status] || [m.status, ''];
-    return badge(label, kind) + (m.flags.includes('no_end') ? ' ' + badge('لم يُسجّل الانتهاء', 'bad') : '');
+    return [badge(label, kind), m.late ? badge(`متأخر ${fmtDuration(m.lateMinutes)}`, 'bad') : '', flagBadges(m.flags)]
+      .filter(Boolean).join(' ');
   };
+  const destCell = (m) => m.destLat != null
+    ? `<div class="small">${mapsLink(m.destLat, m.destLng, '📍 مكان الجهة ↗')} <span class="muted">(${m.destRadius} م)</span></div>`
+    : (m.status === 'pending' || m.status === 'rejected' || m.status === 'cancelled' ? '' : '<div class="small muted">⚠️ بدون مكان محدد</div>');
+  const dist = (p) => (p && p.distance != null ? `<div class="muted small">على بعد ${p.distance} م</div>` : '');
   const person = (m) => `<td class="person"><b>${esc(m.name)}</b><span class="ltr">${esc(m.code || '')}</span></td>`;
   const where = (p) => (p ? mapsLink(p.lat, p.lng, 'الموقع ↗') : '');
 
@@ -2429,11 +3138,11 @@ function render(page) {
             (m) => `<tr>
           <td class="num">${esc(m.date)}</td>
           ${person(m)}
-          <td><b>${esc(m.destination)}</b>${m.purpose ? `<div class="muted small">${esc(m.purpose)}</div>` : ''}
+          <td><b>${esc(m.destination)}</b>${m.purpose ? `<div class="muted small">${esc(m.purpose)}</div>` : ''}${destCell(m)}
             ${m.decisionNote ? `<div class="small">💬 ${esc(m.decisionNote)}</div>` : ''}</td>
           <td>${status(m)}</td>
-          <td class="num">${m.startedAt ? `${fmtTime(m.startedAt)} ${where(m.start)}` : '—'}</td>
-          <td class="num">${m.endedAt ? `${fmtTime(m.endedAt)} ${where(m.end)}` : '—'}</td>
+          <td class="num">${m.startedAt ? `${fmtTime(m.startedAt)} ${where(m.start)}${dist(m.start)}` : '—'}</td>
+          <td class="num">${m.endedAt ? `${fmtTime(m.endedAt)} ${where(m.end)}${dist(m.end)}` : '—'}</td>
           <td class="num">${m.status === 'done' ? fmtDuration(m.durationMinutes) : m.status === 'active' ? 'جارية' : '—'}</td>
           <td class="actions">${m.start || m.end ? `<button class="btn sm" data-photos="${esc(m.id)}" title="الصور">${icon('camera')}</button>` : ''}</td>
         </tr>`
@@ -2468,20 +3177,7 @@ function render(page) {
     $('#total', page).textContent = total ? `إجمالي وقت المأموريات: ${fmtDuration(total)}` : '';
   };
 
-  const decide = (m, approve) =>
-    modal({
-      title: approve ? `موافقة على مأمورية ${m.name}` : `رفض مأمورية ${m.name}`,
-      submitLabel: approve ? 'موافقة' : 'رفض',
-      danger: !approve,
-      body: `<p style="margin-top:0">📍 <b>${esc(m.destination)}</b>${m.purpose ? `<br><span class="muted">${esc(m.purpose)}</span>` : ''}</p>
-        <div class="field"><label>ملاحظة للموظف (اختياري)</label>
-          <input class="input" name="note" maxlength="300" placeholder="${approve ? 'مثال: العودة إلى المكتب بعدها' : 'سبب الرفض'}" /></div>`,
-      onSubmit: async (form) => {
-        await fn('missionDecide', { id: m.id, approve, note: form.note.value.trim() });
-        toast(approve ? 'تمت الموافقة' : 'تم الرفض', 'ok');
-        load();
-      },
-    });
+  const decide = (m, approve) => (approve ? approveModal(m, rows, load) : rejectModal(m, load));
 
   page.addEventListener('click', (ev) => {
     const b = ev.target.closest('button');
@@ -2511,6 +3207,149 @@ function render(page) {
   };
 }
 
+function rejectModal(m, load) {
+  modal({
+    title: `رفض مأمورية ${m.name}`,
+    submitLabel: 'رفض',
+    danger: true,
+    body: `<p style="margin-top:0">📍 <b>${esc(m.destination)}</b>${m.purpose ? `<br><span class="muted">${esc(m.purpose)}</span>` : ''}</p>
+      <div class="field"><label>سبب الرفض (اختياري)</label><input class="input" name="note" maxlength="300" /></div>`,
+    onSubmit: async (form) => {
+      await fn('missionDecide', { id: m.id, approve: false, note: form.note.value.trim() });
+      toast('تم الرفض', 'ok');
+      load();
+    },
+  });
+}
+
+/** Approve + pin the destination on the map (arrival is accepted only inside the circle). */
+function approveModal(m, rows, load) {
+  const sites = (getState().sites || []).filter((s) => s.lat != null);
+  // Earlier destinations (same name first) so a repeated place is one click.
+  const seen = new Set();
+  const previous = rows
+    .filter((x) => x.destLat != null && x.id !== m.id)
+    .sort((a, b) => (b.destination === m.destination) - (a.destination === m.destination))
+    .filter((x) => {
+      const k = `${x.destination}|${x.destLat.toFixed(4)}|${x.destLng.toFixed(4)}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .slice(0, 15);
+  const quick = [
+    ...previous.map((x) => ({ label: `🕘 ${x.destination}`, lat: x.destLat, lng: x.destLng, r: x.destRadius })),
+    ...sites.map((x) => ({ label: `🏗️ ${x.name}`, lat: x.lat, lng: x.lng, r: Math.max(x.radius, 100) })),
+  ];
+  let map, marker, circle, point = null;
+
+  modal({
+    title: `موافقة على مأمورية ${m.name}`,
+    submitLabel: 'موافقة',
+    wide: true,
+    body: `<p style="margin-top:0">📍 <b>${esc(m.destination)}</b>${m.purpose ? `<br><span class="muted">${esc(m.purpose)}</span>` : ''}</p>
+      <div class="field"><label>مكان الجهة على الخريطة</label>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <input class="input" name="q" style="flex:1;min-width:200px" value="${esc(m.destination)}" placeholder="ابحث باسم المكان أو الصق رابط خرائط جوجل / الإحداثيات" />
+          <button type="button" class="btn" data-search>${icon('search')} بحث</button>
+        </div>
+        ${quick.length ? `<select class="input" name="quick" style="margin-top:8px"><option value="">— أو اختر مكانًا سابقًا / موقع عمل —</option>
+          ${quick.map((q, i) => `<option value="${i}">${esc(q.label)}</option>`).join('')}</select>` : ''}
+        <div class="search-results" data-results></div>
+        <span class="hint">اضغط على الخريطة لتحديد المكان بدقة أو اسحب الدبوس. الموظف لن يستطيع تسجيل الوصول إلا داخل الدائرة.</span>
+      </div>
+      <div class="map" data-map></div>
+      <div class="grid-2">
+        <div class="field"><label>نصف قطر الدائرة (متر)</label>
+          <input class="input ltr" name="radius" type="number" min="30" max="5000" step="10" value="200" /></div>
+        <div class="field"><label>ملاحظة للموظف (اختياري)</label>
+          <input class="input" name="note" maxlength="300" placeholder="مثال: العودة إلى المكتب بعدها" /></div>
+      </div>
+      <label class="switch"><input type="checkbox" name="nodest" /> الموافقة بدون تحديد مكان (لا يُتحقق من الوصول — غير مستحسن)</label>`,
+    onOpen: (form) => {
+      const mapEl = form.querySelector('[data-map]');
+      const results = form.querySelector('[data-results]');
+      const radius = () => Math.min(5000, Math.max(30, Number(form.radius.value) || 200));
+      const place = (lat, lng, pan = true) => {
+        point = { lat, lng };
+        if (!map) return;
+        if (!marker) {
+          marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+          marker.on('dragend', () => {
+            const p = marker.getLatLng();
+            place(p.lat, p.lng, false);
+          });
+          circle = L.circle([lat, lng], { radius: radius(), color: '#0f3b5f', fillColor: '#f2a900', fillOpacity: 0.18, weight: 2 }).addTo(map);
+        } else {
+          marker.setLatLng([lat, lng]);
+          circle.setLatLng([lat, lng]);
+        }
+        circle.setRadius(radius());
+        if (pan) map.setView([lat, lng], Math.max(map.getZoom(), 16));
+      };
+      if (window.L) {
+        map = L.map(mapEl).setView(CAIRO, 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+        map.on('click', (e) => place(e.latlng.lat, e.latlng.lng, false));
+        setTimeout(() => map.invalidateSize(), 150);
+      } else {
+        mapEl.innerHTML = '<div class="empty">تعذّر تحميل الخريطة — الصق الإحداثيات أو رابط خرائط جوجل في خانة البحث.</div>';
+      }
+      form.radius.addEventListener('input', () => circle && circle.setRadius(radius()));
+      form.quick?.addEventListener('change', () => {
+        const q = quick[Number(form.quick.value)];
+        if (!q || form.quick.value === '') return;
+        form.radius.value = q.r || 200;
+        place(q.lat, q.lng);
+      });
+      const search = async () => {
+        const text = form.q.value.trim();
+        const c = parseCoords(text);
+        if (c) return place(c.lat, c.lng);
+        if (text.length < 2) return;
+        results.innerHTML = '<span class="spinner"></span>';
+        try {
+          const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&countrycodes=eg&accept-language=ar&q=${encodeURIComponent(text)}`;
+          const list = await (await fetch(url)).json();
+          results.innerHTML = list.length
+            ? list.map((r, i) => `<button type="button" class="chip" data-i="${i}">${esc(r.display_name.split('،').slice(0, 3).join('،'))}</button>`).join('')
+            : '<span class="muted small">لم يُعثر على المكان — اضغط على الخريطة مباشرة أو الصق رابط خرائط جوجل.</span>';
+          results.querySelectorAll('[data-i]').forEach((b) =>
+            b.addEventListener('click', () => {
+              const r = list[Number(b.dataset.i)];
+              place(Number(r.lat), Number(r.lon));
+            }));
+          if (list.length === 1) place(Number(list[0].lat), Number(list[0].lon));
+        } catch {
+          results.innerHTML = '<span class="muted small">تعذّر البحث — حدد المكان على الخريطة.</span>';
+        }
+      };
+      form.querySelector('[data-search]').addEventListener('click', search);
+      form.q.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          search();
+        }
+      });
+      // Pre-select the first earlier destination with the same name.
+      const same = previous.find((x) => x.destination === m.destination);
+      if (same) {
+        form.radius.value = same.destRadius || 200;
+        place(same.destLat, same.destLng);
+      }
+    },
+    onSubmit: async (form) => {
+      const noDest = form.nodest.checked;
+      if (!noDest && !point) throw new Error('حدد مكان الجهة على الخريطة أولًا (أو اختر الموافقة بدون مكان).');
+      const params = { id: m.id, approve: true, note: form.note.value.trim() };
+      if (!noDest) Object.assign(params, { destLat: point.lat, destLng: point.lng, destRadius: Math.round(Number(form.radius.value) || 200) });
+      await fn('missionDecide', params);
+      toast(noDest ? 'تمت الموافقة' : 'تمت الموافقة وتحديد المكان', 'ok');
+      load();
+    },
+  });
+}
+
 async function showMissionPhotos(m) {
   if (!m) return;
   const box = modal({
@@ -2526,6 +3365,562 @@ async function showMissionPhotos(m) {
 }
 
 return { render };
+})();
+
+// ===== js/pages/requests.js =====
+const __m_js_pages_requests = (() => {
+const { fn, listRequests, watch } = __m_js_api;
+const { esc, $, badge, fmtDateTime, icon, modal, toast, todayKey, addDaysKey, REQUEST_STATUS, LEAVE_KINDS } = __m_js_ui;
+const { getState, hrOf, refresh } = __m_js_store;
+const { leaveBalance, workdaysBetween } = __m_js_hr;
+// الطلبات: leave / permission / advance requests sent by employees from the app.
+// The admin approves or rejects here; approved leaves go to the employee file, advances to the month's payroll.
+
+
+
+
+const money = (n) => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+const thisMonth = () => todayKey().slice(0, 7);
+const nextMonth = () => addDaysKey(`${thisMonth()}-28`, 7).slice(0, 7);
+
+/** One line describing the request, in plain words. */
+function describe(r) {
+  if (r.type === 'leave') {
+    const range = r.startDate === r.endDate ? `يوم ${r.startDate}` : `من ${r.startDate} إلى ${r.endDate}`;
+    return `🌴 إجازة ${LEAVE_KINDS[r.leaveKind] || ''} — ${range}${r.days ? ` (${r.days} يوم عمل)` : ''}`;
+  }
+  if (r.type === 'permission') {
+    return `🕐 إذن ${r.permKind === 'late' ? 'تأخير صباحي' : 'انصراف مبكر'} — ${r.permDate} — ${r.minutes} دقيقة`;
+  }
+  return `💵 سلفة — ${money(r.amount)} جنيه`;
+}
+
+function render(page) {
+  let rows = [];
+  let loaded = false;
+  let filter = 'all';
+  const from = addDaysKey(todayKey(), -90);
+
+  page.innerHTML = `
+    <div class="notice">يرسل الموظف طلب <b>إجازة</b> أو <b>إذن</b> (تأخير صباحي / انصراف مبكر) أو <b>سلفة</b> من التطبيق، ويصلك إشعار على تليجرام.
+      عند الموافقة: الإجازة تُسجَّل في ملف الموظف وتُخصم من رصيده، والإذن يُعفيه من التأخير أو الانصراف المبكر في ذلك اليوم، والسلفة تُضاف إلى خصومات شهر الرواتب.
+      الموظف يرى حالة طلبه فقط، ولا يرى أي بيانات مرتبات.</div>
+    <section class="card">
+      <div class="card-h"><h3>${icon('inbox')} طلبات بانتظار ردك</h3><span id="pendingCount"></span></div>
+      <div class="card-b" id="pending"><div class="empty"><span class="spinner"></span></div></div>
+    </section>
+    <section class="card">
+      <div class="card-h"><h3>سجل الطلبات (آخر 90 يومًا)</h3>
+        <div class="tabs-mini" id="filters">
+          <button data-f="all" class="on">الكل</button><button data-f="leave">إجازات</button>
+          <button data-f="permission">أذونات</button><button data-f="advance">سلف</button>
+        </div></div>
+      <div class="card-b flush table-wrap" id="history"></div>
+    </section>`;
+
+  const ctx = (r) => {
+    if (r.type !== 'leave') return '';
+    const st = getState();
+    const b = leaveBalance(hrOf(r.uid), st.leaves.filter((l) => l.uid === r.uid), todayKey());
+    return `<div class="ctx">رصيد الإجازات الحالي: <b>${b.remaining}</b> يوم (المستحق ${b.entitlement}، المستخدم ${b.used}، منها عارضة ${b.casual})</div>`;
+  };
+
+  const draw = () => {
+    if (!loaded) return;
+    const pending = rows.filter((r) => r.status === 'pending').sort((a, b) => a.requestedAt.localeCompare(b.requestedAt));
+    const history = rows.filter((r) => r.status !== 'pending' && (filter === 'all' || r.type === filter))
+      .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
+    $('#pendingCount', page).innerHTML = pending.length ? badge(`${pending.length} طلب`, 'warn') : '';
+    $('#pending', page).innerHTML = pending.length
+      ? `<div class="req-list">${pending.map((r) => `<div class="req-card">
+          <div class="who"><b>${esc(r.name)} <span class="ltr muted small">${esc(r.code || '')}</span></b>
+            <span class="muted small">أُرسل ${fmtDateTime(r.requestedAt)}</span></div>
+          <div class="what"><b>${esc(describe(r))}</b></div>
+          ${r.note ? `<div class="muted">📝 ${esc(r.note)}</div>` : ''}
+          ${ctx(r)}
+          <div class="row">
+            <button class="btn primary" data-approve="${esc(r.id)}">${icon('check')} موافقة</button>
+            <button class="btn danger" data-reject="${esc(r.id)}">${icon('x')} رفض</button>
+          </div></div>`).join('')}</div>`
+      : '<div class="empty">لا توجد طلبات جديدة 👍</div>';
+    $('#history', page).innerHTML = history.length
+      ? `<table class="t"><thead><tr><th>التاريخ</th><th>الموظف</th><th>الطلب</th><th>الحالة</th><th>الرد</th></tr></thead><tbody>${history
+          .map((r) => {
+            const [label, kind] = REQUEST_STATUS[r.status] || [r.status, ''];
+            return `<tr>
+              <td class="num">${fmtDateTime(r.requestedAt)}</td>
+              <td class="person"><b>${esc(r.name)}</b><span class="ltr">${esc(r.code || '')}</span></td>
+              <td>${esc(describe(r))}${r.note ? `<div class="muted small">📝 ${esc(r.note)}</div>` : ''}</td>
+              <td>${badge(label, kind)}</td>
+              <td class="small">${r.decidedAt ? fmtDateTime(r.decidedAt) : '—'}${r.decisionNote ? `<div>💬 ${esc(r.decisionNote)}</div>` : ''}</td>
+            </tr>`;
+          })
+          .join('')}</tbody></table>`
+      : '<div class="empty">لا توجد طلبات في السجل.</div>';
+  };
+
+  const decide = (r, approve) => {
+    const workDays = getState().settings.workDays || [6, 0, 1, 2, 3, 4];
+    const autoDays = r.type === 'leave' ? workdaysBetween(r.startDate, r.endDate, workDays).length : 0;
+    let extra = '';
+    if (approve && r.type === 'leave') {
+      extra = `<div class="field"><label>عدد أيام العمل المحسوبة من الرصيد</label>
+        <input class="input ltr" name="days" type="number" min="0.5" max="365" step="0.5" value="${esc(r.days || autoDays || 1)}" />
+        <span class="hint">محسوبة تلقائيًا بأيام العمل (${autoDays} يوم). عدّلها إن كان بين التاريخين عطلة رسمية.</span></div>`;
+    }
+    if (approve && r.type === 'advance') {
+      extra = `<div class="field"><label>تُخصم السلفة من رواتب شهر</label>
+        <select class="input" name="month"><option value="${thisMonth()}">${thisMonth()} (الشهر الحالي)</option>
+          <option value="${nextMonth()}">${nextMonth()} (الشهر القادم)</option></select></div>`;
+    }
+    modal({
+      title: approve ? `موافقة على طلب ${r.name}` : `رفض طلب ${r.name}`,
+      submitLabel: approve ? 'موافقة' : 'رفض',
+      danger: !approve,
+      body: `<p style="margin-top:0"><b>${esc(describe(r))}</b>${r.note ? `<br><span class="muted">📝 ${esc(r.note)}</span>` : ''}</p>
+        ${extra}
+        <div class="field"><label>${approve ? 'ملاحظة للموظف (اختياري)' : 'سبب الرفض (اختياري، يراه الموظف)'}</label>
+          <input class="input" name="note" maxlength="300" /></div>`,
+      onSubmit: async (form) => {
+        const params = { id: r.id, approve, note: form.note.value.trim() };
+        if (form.days) params.days = Number(form.days.value);
+        if (form.month) params.month = form.month.value;
+        await fn('requestDecide', params);
+        toast(approve ? 'تمت الموافقة' : 'تم الرفض', 'ok');
+        if (approve && r.type === 'leave') refresh('hr');
+        load();
+      },
+    });
+  };
+
+  page.addEventListener('click', (ev) => {
+    const b = ev.target.closest('button');
+    if (!b) return;
+    const find = (id) => rows.find((x) => x.id === id);
+    if (b.dataset.approve) decide(find(b.dataset.approve), true);
+    if (b.dataset.reject) decide(find(b.dataset.reject), false);
+    if (b.dataset.f) {
+      filter = b.dataset.f;
+      page.querySelectorAll('#filters button').forEach((x) => x.classList.toggle('on', x === b));
+      draw();
+    }
+  });
+
+  const load = async () => {
+    try {
+      rows = await listRequests(`${from}T00:00:00Z`);
+      loaded = true;
+      draw();
+    } catch (err) {
+      const msg = /requests/.test(err.message) ? 'جدول الطلبات غير موجود في قاعدة البيانات بعد.' : err.message;
+      ['#pending', '#history'].forEach((s) => ($(s, page).innerHTML = `<div class="empty">${esc(msg)}</div>`));
+    }
+  };
+  load();
+  const unsub = watch('requests', load);
+  const unsub2 = watch('leaves', draw);
+  return () => {
+    unsub();
+    unsub2();
+  };
+}
+
+return { describe, render };
+})();
+
+// ===== js/pages/evaluations.js =====
+const __m_js_pages_evaluations = (() => {
+const { listCriteria, saveCriterion, deleteCriterion, listEvaluations, deleteEvaluation, watch } = __m_js_api;
+const { esc, $, badge, icon, modal, toast, confirmDialog } = __m_js_ui;
+const { getState, subscribe, hrOf } = __m_js_store;
+const { RECOMMENDATIONS, criteriaFor } = __m_js_hr;
+const { openEvalModal, printEvaluation, gradeKind } = __m_js_evalform;
+const { DEPARTMENTS, deptLabel } = __m_js_pages_employee;
+// تقييم الأداء: the owner defines evaluation criteria (for everyone / per department / per job title)
+// and records periodic evaluations. The result is a weighted percentage with a grade.
+
+
+
+
+
+
+const SCOPE = { all: 'لكل الموظفين', department: 'إدارة', job: 'وظيفة' };
+
+function render(page) {
+  let criteria = null;
+  let evals = null;
+  let error = '';
+  let dept = '';
+
+  page.innerHTML = `
+    <div class="notice">حدّد <b>بنود التقييم</b> مرة واحدة: بنود عامة لكل الموظفين، وبنود خاصة بكل إدارة (الفنية / التشغيلية)، وبنود خاصة بكل وظيفة.
+      عند تقييم موظف تظهر له تلقائيًا البنود العامة + بنود إدارته + بنود وظيفته. كل بند يُقيَّم من 1 إلى 5، والنتيجة نسبة مئوية مرجّحة بالأوزان.</div>
+    <section class="kpis" id="kpis"></section>
+    <section class="card">
+      <div class="card-h"><h3>${icon('star')} التقييمات</h3>
+        <div class="row"><select class="input sm" id="dept" style="width:auto"><option value="">كل الإدارات</option>
+          ${Object.keys(DEPARTMENTS).map((d) => `<option>${esc(d)}</option>`).join('')}</select>
+          <button class="btn primary sm" data-act="new">${icon('plus')} تقييم جديد</button></div></div>
+      <div class="card-b flush table-wrap" id="evals"><div class="empty"><span class="spinner"></span></div></div>
+    </section>
+    <section class="card">
+      <div class="card-h"><h3>بنود التقييم</h3><button class="btn sm" data-act="crit">${icon('plus')} إضافة بند</button></div>
+      <div class="card-b" id="crit"><div class="empty"><span class="spinner"></span></div></div>
+    </section>`;
+
+  const draw = () => {
+    if (error) {
+      ['#evals', '#crit'].forEach((s) => ($(s, page).innerHTML = `<div class="empty">${esc(error)}</div>`));
+      return;
+    }
+    if (!criteria || !evals || !getState().ready.engineers) return;
+    const st = getState();
+    const name = (uid) => st.engineers.find((e) => e.id === uid)?.name || '—';
+    const list = evals.filter((v) => !dept || hrOf(v.uid)?.department === dept);
+    const year = new Date().getFullYear().toString();
+    const thisYear = evals.filter((v) => v.evalDate?.startsWith(year));
+    const avg = thisYear.length ? Math.round(thisYear.reduce((a, v) => a + v.total, 0) / thisYear.length) : 0;
+    const active = st.engineers.filter((e) => e.active);
+    const never = active.filter((e) => !evals.some((v) => v.uid === e.id));
+    const noCrit = active.filter((e) => !criteriaFor(hrOf(e.id), criteria).length);
+    $('#kpis', page).innerHTML = [
+      ['تقييمات هذا العام', thisYear.length, 'var(--brand)'],
+      ['متوسط النتائج هذا العام', thisYear.length ? `${avg}%` : '—', 'var(--ok)'],
+      ['موظفون لم يُقيَّموا بعد', never.length, 'var(--warn)'],
+      ['موظفون بلا بنود تقييم', noCrit.length, 'var(--bad)'],
+    ].map(([l, v, c]) => `<div class="card kpi"><div class="label"><span class="dot" style="background:${c}"></span>${l}</div><div class="value">${v}</div></div>`).join('');
+
+    $('#evals', page).innerHTML = list.length
+      ? `<table class="t"><thead><tr><th>الموظف</th><th>الإدارة / الوظيفة</th><th>الفترة</th><th>التاريخ</th><th>النتيجة</th><th>التوصية</th><th>المُقيِّم</th><th></th></tr></thead><tbody>
+        ${list.map((v) => {
+          const hr = hrOf(v.uid) || {};
+          return `<tr>
+            <td class="person"><a href="#/employee?id=${esc(v.uid)}"><b>${esc(name(v.uid))}</b></a></td>
+            <td class="small">${esc(deptLabel(hr) || '—')}<div class="muted">${esc(hr.jobTitle || '')}</div></td>
+            <td>${esc(v.period)}</td><td class="num">${esc(v.evalDate)}</td>
+            <td>${badge(`${v.total}% — ${v.grade}`, gradeKind(v.total))}</td>
+            <td class="small">${esc(RECOMMENDATIONS[v.recommendation] || '—')}</td>
+            <td class="small">${esc(v.evaluator || '—')}</td>
+            <td class="actions"><button class="btn sm" data-print="${esc(v.id)}" title="طباعة">${icon('file')}</button>
+              <button class="btn sm" data-edit="${esc(v.id)}" title="تعديل">${icon('edit')}</button>
+              <button class="btn sm danger" data-del="${esc(v.id)}" title="حذف">${icon('trash')}</button></td></tr>`;
+        }).join('')}</tbody></table>`
+      : `<div class="empty">لا توجد تقييمات${dept ? ' في هذه الإدارة' : ''} بعد. اضغط «تقييم جديد».</div>`;
+
+    // Criteria grouped: all → each department → each job title.
+    const groups = [['all', '']];
+    Object.keys(DEPARTMENTS).forEach((d) => groups.push(['department', d]));
+    [...new Set(criteria.filter((c) => c.scopeType === 'department').map((c) => c.scopeValue))]
+      .filter((d) => !DEPARTMENTS[d]).forEach((d) => groups.push(['department', d]));
+    [...new Set(criteria.filter((c) => c.scopeType === 'job').map((c) => c.scopeValue))].sort().forEach((j) => groups.push(['job', j]));
+    $('#crit', page).innerHTML = groups.map(([t, v]) => {
+      const items = criteria.filter((c) => c.scopeType === t && (t === 'all' || c.scopeValue === v));
+      const weight = items.filter((c) => c.active).reduce((a, c) => a + c.weight, 0);
+      return `<div class="crit-group"><div class="crit-h"><b>${t === 'all' ? 'بنود عامة — لكل الموظفين' : `${SCOPE[t]}: ${esc(v)}`}</b>
+          <span class="muted small">${items.length} بند · مجموع الأوزان ${weight}</span>
+          <button class="btn ghost sm" data-add-scope="${t}" data-add-value="${esc(v)}">${icon('plus')} بند</button></div>
+        ${items.length ? `<div class="crit-items">${items.map((c) => `<div class="crit-item ${c.active ? '' : 'off'}">
+            <div><b>${esc(c.name)}</b>${c.description ? `<div class="muted small">${esc(c.description)}</div>` : ''}</div>
+            <span class="badge info">وزن ${c.weight}</span>${c.active ? '' : ' <span class="badge">موقوف</span>'}
+            <button class="btn ghost sm" data-edit-crit="${esc(c.id)}" title="تعديل">${icon('edit')}</button>
+            <button class="btn ghost sm" data-del-crit="${esc(c.id)}" title="حذف">${icon('trash')}</button></div>`).join('')}</div>`
+          : '<div class="muted small" style="padding:6px 0">لا توجد بنود.</div>'}</div>`;
+    }).join('') + `<p class="hint">لإضافة بنود خاصة بوظيفة معينة (مثل «مهندس موقع» أو «محاسب») اضغط «إضافة بند» واختر «وظيفة» ثم اكتب اسم الوظيفة كما هو في ملف الموظف.</p>`;
+  };
+
+  const critModal = (c, preset = {}) => {
+    c = c || { scopeType: preset.scopeType || 'all', scopeValue: preset.scopeValue || '', weight: 10, active: true, sort: (criteria?.length || 0) + 1 };
+    const jobs = [...new Set(getState().hr.map((h) => h.jobTitle).filter(Boolean))].sort();
+    modal({
+      title: c.id ? 'تعديل بند تقييم' : 'بند تقييم جديد',
+      body: `<div class="grid-2">
+          <div class="field"><label>ينطبق على *</label><select class="input" name="scope">
+            ${Object.entries(SCOPE).map(([k, v]) => `<option value="${k}" ${c.scopeType === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+          <div class="field" data-val><label data-val-label>الاسم</label>
+            <select class="input" name="dept">${Object.keys(DEPARTMENTS).map((d) => `<option ${c.scopeValue === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select>
+            <input class="input" name="job" list="critJobs" maxlength="80" value="${esc(c.scopeType === 'job' ? c.scopeValue : '')}" placeholder="اسم الوظيفة كما في ملف الموظف" />
+            <datalist id="critJobs">${jobs.map((j) => `<option value="${esc(j)}">`).join('')}</datalist></div>
+          <div class="field"><label>اسم البند *</label><input class="input" name="name" maxlength="120" value="${esc(c.name || '')}" placeholder="مثال: الالتزام بالجدول الزمني" /></div>
+          <div class="field"><label>الوزن (أهمية البند) *</label><input class="input ltr" type="number" name="weight" min="1" max="100" step="1" value="${esc(c.weight)}" /></div>
+        </div>
+        <div class="field"><label>وصف مختصر (يظهر للمُقيِّم)</label><input class="input" name="desc" maxlength="200" value="${esc(c.description || '')}" /></div>
+        <div class="grid-2"><div class="field"><label>الترتيب</label><input class="input ltr" type="number" name="sort" value="${esc(c.sort || 0)}" /></div>
+          <div class="field"><label class="switch"><input type="checkbox" name="active" ${c.active !== false ? 'checked' : ''} /> البند مفعّل</label></div></div>`,
+      onOpen: (f) => {
+        const sync = () => {
+          const t = f.scope.value;
+          f.querySelector('[data-val]').style.visibility = t === 'all' ? 'hidden' : 'visible';
+          f.querySelector('[data-val-label]').textContent = t === 'job' ? 'الوظيفة *' : 'الإدارة *';
+          f.dept.style.display = t === 'department' ? '' : 'none';
+          f.job.style.display = t === 'job' ? '' : 'none';
+        };
+        f.scope.addEventListener('change', sync);
+        sync();
+      },
+      onSubmit: async (f) => {
+        const scopeType = f.scope.value;
+        const scopeValue = scopeType === 'department' ? f.dept.value : scopeType === 'job' ? f.job.value.trim() : '';
+        if (scopeType !== 'all' && !scopeValue) throw new Error('حدد الإدارة أو الوظيفة.');
+        if (f.name.value.trim().length < 2) throw new Error('اكتب اسم البند.');
+        const weight = Number(f.weight.value);
+        if (!(weight > 0 && weight <= 100)) throw new Error('الوزن من 1 إلى 100.');
+        await saveCriterion(c.id || null, { scopeType, scopeValue, name: f.name.value.trim(), description: f.desc.value.trim(),
+          weight, sort: Number(f.sort.value) || 0, active: f.active.checked });
+        toast('تم الحفظ', 'ok');
+        load();
+      },
+    });
+  };
+
+  page.addEventListener('click', async (ev) => {
+    const b = ev.target.closest('button');
+    if (!b) return;
+    try {
+      const findEval = (id) => evals.find((v) => v.id === id);
+      if (b.dataset.act === 'new') openEvalModal({ done: load });
+      if (b.dataset.act === 'crit') critModal(null);
+      if (b.dataset.addScope) critModal(null, { scopeType: b.dataset.addScope, scopeValue: b.dataset.addValue });
+      if (b.dataset.editCrit) critModal(criteria.find((c) => c.id === b.dataset.editCrit));
+      if (b.dataset.delCrit && await confirmDialog('حذف البند', 'حذف هذا البند؟ التقييمات السابقة تبقى كما هي.', { confirmLabel: 'حذف', danger: true })) {
+        await deleteCriterion(b.dataset.delCrit);
+        load();
+      }
+      if (b.dataset.print) printEvaluation(findEval(b.dataset.print));
+      if (b.dataset.edit) openEvalModal({ ev: findEval(b.dataset.edit), done: load });
+      if (b.dataset.del && await confirmDialog('حذف التقييم', 'حذف هذا التقييم نهائيًا؟', { confirmLabel: 'حذف', danger: true })) {
+        await deleteEvaluation(b.dataset.del);
+        toast('تم الحذف', 'ok');
+        load();
+      }
+    } catch (err) {
+      toast(err.message || 'حدث خطأ', 'bad');
+    }
+  });
+  $('#dept', page).addEventListener('change', (e) => {
+    dept = e.target.value;
+    draw();
+  });
+
+  const load = async () => {
+    try {
+      [criteria, evals] = await Promise.all([listCriteria(), listEvaluations()]);
+      error = '';
+    } catch (err) {
+      error = /eval_criteria|evaluations/.test(err.message) ? 'جداول التقييم غير مفعّلة في قاعدة البيانات بعد.' : err.message;
+    }
+    draw();
+  };
+  load();
+  const u1 = watch('evaluations', load);
+  const u2 = watch('eval_criteria', load);
+  const u3 = subscribe(draw);
+  return () => {
+    u1();
+    u2();
+    u3();
+  };
+}
+
+return { render };
+})();
+
+// ===== js/pages/recruitment.js =====
+const __m_js_pages_recruitment = (() => {
+const { listInterviews, saveInterview, deleteInterview, docUrl, watch } = __m_js_api;
+const { esc, $, badge, icon, modal, toast, confirmDialog, todayKey } = __m_js_ui;
+const { getState } = __m_js_store;
+const { DEPARTMENTS, money } = __m_js_pages_employee;
+// التوظيف والمقابلات: a record of every interview for every job — candidate, status, reject reason,
+// offered vs expected salary, contact result and who interviewed him.
+
+
+
+
+const INTERVIEW_STATUS = {
+  new: ['جديد — لم تتم المقابلة', ''],
+  candidate: ['مرشح', 'ok'],
+  under_review: ['تحت الدراسة', 'info'],
+  hired: ['تم التعيين', 'ok'],
+  rejected: ['مرفوض', 'bad'],
+  withdrawn: ['اعتذر المتقدم', 'warn'],
+};
+
+function render(page) {
+  let rows = null;
+  let error = '';
+  const f = { q: '', job: '', status: '' };
+
+  page.innerHTML = `
+    <div class="notice">سجّل كل متقدم لأي وظيفة: موقفه (مرشح / تحت الدراسة / مرفوض / تم التعيين)، سبب الرفض، الراتب المعروض والمتوقع، نتيجة التواصل، ومن أجرى المقابلة.</div>
+    <section class="kpis" id="kpis"></section>
+    <section class="card">
+      <div class="card-h"><h3>${icon('briefcase')} سجل المقابلات</h3>
+        <div class="row">
+          <input class="input sm" id="q" placeholder="بحث بالاسم أو الهاتف" style="width:180px" />
+          <select class="input sm" id="job" style="width:auto"><option value="">كل الوظائف</option></select>
+          <select class="input sm" id="status" style="width:auto"><option value="">كل الحالات</option>
+            ${Object.entries(INTERVIEW_STATUS).map(([k, [l]]) => `<option value="${k}">${l}</option>`).join('')}</select>
+          <button class="btn sm" data-act="xls">${icon('download')} Excel</button>
+          <button class="btn primary sm" data-act="new">${icon('plus')} متقدم جديد</button>
+        </div></div>
+      <div class="card-b flush table-wrap" id="list"><div class="empty"><span class="spinner"></span></div></div>
+    </section>`;
+
+  const filtered = () => rows.filter((r) =>
+    (!f.job || r.jobTitle === f.job) && (!f.status || r.status === f.status)
+    && (!f.q || `${r.candidateName} ${r.phone}`.toLowerCase().includes(f.q.toLowerCase())));
+
+  const draw = () => {
+    if (error) return ($('#list', page).innerHTML = `<div class="empty">${esc(error)}</div>`);
+    if (!rows) return;
+    const jobs = [...new Set(rows.map((r) => r.jobTitle).filter(Boolean))].sort();
+    const sel = $('#job', page);
+    const cur = sel.value;
+    sel.innerHTML = `<option value="">كل الوظائف</option>${jobs.map((j) => `<option ${j === cur ? 'selected' : ''}>${esc(j)}</option>`).join('')}`;
+    const count = (s) => rows.filter((r) => r.status === s).length;
+    $('#kpis', page).innerHTML = [
+      ['إجمالي المتقدمين', rows.length, 'var(--brand)'], ['مرشحون', count('candidate'), 'var(--ok)'],
+      ['تحت الدراسة', count('under_review') + count('new'), 'var(--info)'], ['تم تعيينهم', count('hired'), 'var(--ok)'],
+      ['مرفوضون', count('rejected'), 'var(--bad)'],
+    ].map(([l, v, c]) => `<div class="card kpi"><div class="label"><span class="dot" style="background:${c}"></span>${l}</div><div class="value">${v}</div></div>`).join('');
+    const list = filtered();
+    $('#list', page).innerHTML = list.length
+      ? `<table class="t"><thead><tr><th>المتقدم</th><th>الوظيفة</th><th>المقابلة</th><th>الموقف</th><th>الراتب المعروض / المتوقع</th><th>نتيجة التواصل</th><th></th></tr></thead><tbody>
+        ${list.map((r) => {
+          const [l, k] = INTERVIEW_STATUS[r.status] || [r.status, ''];
+          return `<tr>
+            <td class="person"><b>${esc(r.candidateName)}</b><span class="ltr">${esc(r.phone)}</span>${r.rating ? `<span class="stars" title="تقييم المقابلة ${r.rating} من 5">${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</span>` : ''}</td>
+            <td>${esc(r.jobTitle || '—')}${r.department ? `<div class="muted small">${esc(r.department)}</div>` : ''}</td>
+            <td class="small"><span class="ltr">${esc(r.interviewDate || '—')}</span>${r.interviewer ? `<div class="muted">قابله: ${esc(r.interviewer)}</div>` : ''}</td>
+            <td>${badge(l, k)}${r.status === 'rejected' && r.rejectReason ? `<div class="muted small">السبب: ${esc(r.rejectReason)}</div>` : ''}</td>
+            <td class="num small">${r.offeredSalary != null ? money(r.offeredSalary) : '—'}<div class="muted">متوقع: ${r.expectedSalary != null ? money(r.expectedSalary) : '—'}</div></td>
+            <td class="small">${esc(r.contactResult || '—')}</td>
+            <td class="actions">${r.cvPath ? `<button class="btn sm" data-cv="${esc(r.id)}" title="السيرة الذاتية">${icon('file')}</button>` : ''}
+              <button class="btn sm" data-edit="${esc(r.id)}" title="تعديل">${icon('edit')}</button>
+              <button class="btn sm danger" data-del="${esc(r.id)}" title="حذف">${icon('trash')}</button></td></tr>`;
+        }).join('')}</tbody></table>`
+      : `<div class="empty">${rows.length ? 'لا توجد نتائج.' : 'لا توجد مقابلات بعد. اضغط «متقدم جديد».'}</div>`;
+  };
+
+  const form = (r) => {
+    r = r || { status: 'new', interviewDate: todayKey() };
+    const jobs = [...new Set([...getState().hr.map((h) => h.jobTitle), ...(rows || []).map((x) => x.jobTitle)].filter(Boolean))].sort();
+    modal({
+      title: r.id ? `تعديل — ${r.candidateName}` : 'متقدم جديد',
+      wide: true,
+      body: `<div class="grid-2">
+          <div class="field"><label>اسم المتقدم *</label><input class="input" name="name" maxlength="120" value="${esc(r.candidateName || '')}" /></div>
+          <div class="field"><label>الهاتف</label><input class="input ltr" name="phone" maxlength="30" value="${esc(r.phone || '')}" /></div>
+          <div class="field"><label>الوظيفة المتقدم لها *</label><input class="input" name="job" list="ivJobs" maxlength="80" value="${esc(r.jobTitle || '')}" />
+            <datalist id="ivJobs">${jobs.map((j) => `<option value="${esc(j)}">`).join('')}</datalist></div>
+          <div class="field"><label>الإدارة</label><select class="input" name="dept"><option value="">—</option>
+            ${Object.keys(DEPARTMENTS).map((d) => `<option ${r.department === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select></div>
+          <div class="field"><label>تاريخ المقابلة</label><input class="input ltr" type="date" name="date" value="${esc(r.interviewDate || '')}" /></div>
+          <div class="field"><label>من أجرى المقابلة</label><input class="input" name="interviewer" maxlength="120" value="${esc(r.interviewer || '')}" placeholder="مثال: م. أشرف + أ. محمود" /></div>
+          <div class="field"><label>الموقف *</label><select class="input" name="status">
+            ${Object.entries(INTERVIEW_STATUS).map(([k, [l]]) => `<option value="${k}" ${r.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+          <div class="field" data-reason><label>سبب الرفض</label><input class="input" name="reason" maxlength="300" value="${esc(r.rejectReason || '')}" /></div>
+          <div class="field"><label>الراتب المعروض</label><input class="input ltr" type="number" min="0" step="50" name="offered" value="${r.offeredSalary ?? ''}" /></div>
+          <div class="field"><label>الراتب المتوقع (طلب المتقدم)</label><input class="input ltr" type="number" min="0" step="50" name="expected" value="${r.expectedSalary ?? ''}" /></div>
+          <div class="field"><label>نتيجة التواصل</label><input class="input" name="contact" maxlength="300" value="${esc(r.contactResult || '')}" placeholder="مثال: تم الاتصال ووافق على البدء أول الشهر" /></div>
+          <div class="field"><label>تقييم المقابلة</label><select class="input" name="rating"><option value="">—</option>
+            ${[5, 4, 3, 2, 1].map((n) => `<option value="${n}" ${r.rating === n ? 'selected' : ''}>${'★'.repeat(n)} (${n})</option>`).join('')}</select></div>
+          <div class="field"><label>السيرة الذاتية (PDF أو صورة)</label><input class="input" type="file" name="cv" accept="application/pdf,image/*" />
+            ${r.cvPath ? '<span class="hint">يوجد ملف محفوظ — اختر ملفًا جديدًا فقط للاستبدال.</span>' : ''}</div>
+          <div class="field"><label>ملاحظات</label><input class="input" name="notes" maxlength="500" value="${esc(r.notes || '')}" /></div>
+        </div>`,
+      onOpen: (fm) => {
+        const sync = () => (fm.querySelector('[data-reason]').style.display = fm.status.value === 'rejected' ? '' : 'none');
+        fm.status.addEventListener('change', sync);
+        sync();
+      },
+      onSubmit: async (fm) => {
+        if (fm.name.value.trim().length < 2) throw new Error('اكتب اسم المتقدم.');
+        if (!fm.job.value.trim()) throw new Error('اكتب الوظيفة المتقدم لها.');
+        const file = fm.cv.files[0] || null;
+        if (file && file.size > 10 * 1024 * 1024) throw new Error('حجم الملف أكبر من 10 ميجا.');
+        const n = (v) => (v === '' ? null : Number(v));
+        await saveInterview(r.id || null, {
+          candidateName: fm.name.value.trim(), phone: fm.phone.value.trim(), jobTitle: fm.job.value.trim(), department: fm.dept.value,
+          interviewDate: fm.date.value, interviewer: fm.interviewer.value.trim(), status: fm.status.value,
+          rejectReason: fm.status.value === 'rejected' ? fm.reason.value.trim() : '', offeredSalary: n(fm.offered.value),
+          expectedSalary: n(fm.expected.value), contactResult: fm.contact.value.trim(), rating: n(fm.rating.value),
+          notes: fm.notes.value.trim(), cvPath: r.cvPath,
+        }, file);
+        toast('تم الحفظ', 'ok');
+        load();
+      },
+    });
+  };
+
+  const exportXls = async () => {
+    if (!window.XLSX) return toast('مكتبة Excel لم تُحمّل، تأكد من الإنترنت', 'bad');
+    const data = filtered().map((r) => ({
+      'المتقدم': r.candidateName, 'الهاتف': r.phone, 'الوظيفة': r.jobTitle, 'الإدارة': r.department, 'تاريخ المقابلة': r.interviewDate || '',
+      'من قابله': r.interviewer, 'الموقف': (INTERVIEW_STATUS[r.status] || [r.status])[0], 'سبب الرفض': r.rejectReason,
+      'الراتب المعروض': r.offeredSalary ?? '', 'الراتب المتوقع': r.expectedSalary ?? '', 'نتيجة التواصل': r.contactResult,
+      'تقييم المقابلة': r.rating ?? '', 'ملاحظات': r.notes,
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    wb.Workbook = { Views: [{ RTL: true }] };
+    XLSX.utils.book_append_sheet(wb, ws, 'المقابلات');
+    XLSX.writeFile(wb, `مقابلات-التوظيف-${todayKey()}.xlsx`);
+  };
+
+  page.addEventListener('click', async (ev) => {
+    const b = ev.target.closest('button');
+    if (!b) return;
+    try {
+      const find = (id) => rows.find((x) => x.id === id);
+      if (b.dataset.act === 'new') form(null);
+      if (b.dataset.act === 'xls') await exportXls();
+      if (b.dataset.edit) form(find(b.dataset.edit));
+      if (b.dataset.cv) {
+        const w = window.open('', '_blank');
+        const url = await docUrl(find(b.dataset.cv)?.cvPath);
+        if (url && w) w.location.href = url;
+        else w?.close();
+      }
+      if (b.dataset.del) {
+        const r = find(b.dataset.del);
+        if (await confirmDialog('حذف', `حذف «${r.candidateName}» من سجل المقابلات نهائيًا؟`, { confirmLabel: 'حذف', danger: true })) {
+          await deleteInterview(r);
+          toast('تم الحذف', 'ok');
+          load();
+        }
+      }
+    } catch (err) {
+      toast(err.message || 'حدث خطأ', 'bad');
+    }
+  });
+  $('#q', page).addEventListener('input', (e) => {
+    f.q = e.target.value.trim();
+    draw();
+  });
+  $('#job', page).addEventListener('change', (e) => {
+    f.job = e.target.value;
+    draw();
+  });
+  $('#status', page).addEventListener('change', (e) => {
+    f.status = e.target.value;
+    draw();
+  });
+
+  const load = async () => {
+    try {
+      rows = await listInterviews();
+      error = '';
+    } catch (err) {
+      error = /interviews/.test(err.message) ? 'جدول المقابلات غير مفعّل في قاعدة البيانات بعد.' : err.message;
+    }
+    draw();
+  };
+  load();
+  return watch('interviews', load);
+}
+
+return { INTERVIEW_STATUS, render };
 })();
 
 // ===== js/pages/reports.js =====
@@ -2789,7 +4184,7 @@ return { render, compute };
 
 // ===== js/pages/payroll.js =====
 const __m_js_pages_payroll = (() => {
-const { attendanceRange, missionsBetween, listAdjustments, saveAdjustment, savePayrollSettings } = __m_js_api;
+const { attendanceRange, missionsBetween, approvedPermissions, listAdjustments, saveAdjustment, savePayrollSettings } = __m_js_api;
 const { getState, subscribe, hrOf, salariesOf, leavesOf, refresh } = __m_js_store;
 const { esc, $, badge, icon, modal, toast, todayKey, withBusy } = __m_js_ui;
 const { summarize, payrollLine, monthStart, monthEnd, addDays, minKey } = __m_js_hr;
@@ -2837,8 +4232,8 @@ function render(page) {
     const to = monthEnd(month);
     $('#table', page).innerHTML = `<div class="empty"><span class="spinner"></span></div>`;
     try {
-      const [rows, missions, adj] = await Promise.all([attendanceRange(from, to), missionsBetween(from, to), listAdjustments(month)]);
-      data = { rows, missions, adj, month };
+      const [rows, missions, adj, perms] = await Promise.all([attendanceRange(from, to), missionsBetween(from, to), listAdjustments(month), approvedPermissions(from, to)]);
+      data = { rows, missions, adj, month, perms };
       draw();
     } catch (err) {
       $('#table', page).innerHTML = `<div class="empty">${esc(err.message)}</div>`;
@@ -2857,7 +4252,7 @@ function render(page) {
         const att = summarize({
           from, to, today, startKey: countFrom(e, hr),
           rows: data.rows.filter((r) => r.uid === e.id), missions: data.missions.filter((m) => m.uid === e.id),
-          leaves: leavesOf(e.id), settings,
+          leaves: leavesOf(e.id), settings, permissions: data.perms.filter((p) => p.uid === e.id),
         });
         const adj = data.adj.find((a) => a.uid === e.id) || { bonus: 0, deduction: 0, advance: 0, note: '' };
         return { e, hr, att, adj, p: payrollLine({ m: month, hr, changes: salariesOf(e.id), att, adj, ps, settings }) };
@@ -3198,6 +4593,8 @@ function render(page) {
         <div class="field"><label>ملخص اليوم الساعة</label><input class="input ltr" type="time" name="dailySummaryTime" value="${esc(s.dailySummaryTime)}" /></div>
       </div>
       <div class="field"><label class="switch"><input type="checkbox" name="selfieRequired" ${s.selfieRequired ? 'checked' : ''}/> السيلفي إجباري مع كل تسجيل (موصى به)</label></div>
+      <div class="field"><label class="switch"><input type="checkbox" name="allowDeviceAuth" ${s.allowDeviceAuth !== false ? 'checked' : ''}/> السماح ببصمة الهاتف أو رمز قفله بديلًا إذا تعذّر التقاط الصورة</label>
+        <span class="hint">يظهر للموظف زر «التسجيل ببصمة الهاتف» فقط عند فشل الكاميرا، ويصلك تنبيه على تليجرام ويُميَّز التسجيل في التقارير.</span></div>
       <div class="field"><label>الاحتفاظ بصور السيلفي (يوم)</label><input class="input ltr" type="number" min="7" max="3650" name="selfieRetentionDays" value="${esc(s.selfieRetentionDays)}" style="max-width:200px" />
         <span class="hint">تُحذف الصور الأقدم تلقائيًا للحفاظ على مساحة التخزين. القيمة المناسبة 90 يومًا.</span></div>
       <div class="field"><label class="switch"><input type="checkbox" name="allowCheckoutOutside" ${s.allowCheckoutOutside ? 'checked' : ''}/> السماح بالانصراف من خارج الموقع (يُميَّز في التقارير ويصلك إشعار)</label></div>
@@ -3221,6 +4618,7 @@ function render(page) {
       missedAlertTime: f.missedAlertTime.value,
       dailySummaryTime: f.dailySummaryTime.value,
       selfieRequired: f.selfieRequired.checked,
+      allowDeviceAuth: f.allowDeviceAuth.checked,
       allowCheckoutOutside: f.allowCheckoutOutside.checked,
       selfieRetentionDays: Number(f.selfieRetentionDays.value) || 90,
     };
@@ -3327,13 +4725,16 @@ return { render };
 
 // ===== js/app.js =====
 {
-const { configured, fn, isAdmin, onAuth, signIn, signOut, resetPasswordEmail, setNewPassword, pendingMissionsCount, watch } = __m_js_api;
+const { configured, fn, isAdmin, onAuth, signIn, signOut, resetPasswordEmail, setNewPassword, pendingMissionsCount, pendingRequestsCount, watch } = __m_js_api;
 const { esc, icon, toast, modal, $ } = __m_js_ui;
 const { startStore, stopStore, getState, subscribe } = __m_js_store;
 const today = __m_js_pages_today;
 const sites = __m_js_pages_sites;
 const engineers = __m_js_pages_engineers;
 const missions = __m_js_pages_missions;
+const requests = __m_js_pages_requests;
+const evaluations = __m_js_pages_evaluations;
+const recruitment = __m_js_pages_recruitment;
 const reports = __m_js_pages_reports;
 const payroll = __m_js_pages_payroll;
 const employee = __m_js_pages_employee;
@@ -3351,13 +4752,19 @@ const settings = __m_js_pages_settings;
 
 
 
+
+
+
 const ROUTES = {
   today: { title: 'لوحة اليوم', icon: 'today', page: today },
   sites: { title: 'المواقع', icon: 'site', page: sites },
   engineers: { title: 'الموظفين', icon: 'users', page: engineers },
   missions: { title: 'المأموريات', icon: 'car', page: missions },
+  requests: { title: 'الطلبات', icon: 'inbox', page: requests },
   reports: { title: 'التقارير', icon: 'report', page: reports },
   payroll: { title: 'الرواتب', icon: 'money', page: payroll },
+  evaluations: { title: 'تقييم الأداء', icon: 'star', page: evaluations },
+  recruitment: { title: 'التوظيف والمقابلات', icon: 'briefcase', page: recruitment },
   employee: { title: 'ملف الموظف', icon: 'users', page: employee, hidden: true, parent: 'engineers' },
   security: { title: 'سجل الأمان', icon: 'shield', page: security },
   settings: { title: 'الإعدادات', icon: 'settings', page: settings },
@@ -3463,7 +4870,7 @@ function renderShell(user) {
         <nav class="nav">
           ${Object.entries(ROUTES)
             .filter(([, r]) => !r.hidden)
-            .map(([k, r]) => `<a href="#/${k}" data-route="${k}">${icon(r.icon)}<span>${r.title}</span>${k === 'missions' ? '<b class="count" id="missionsCount"></b>' : ''}</a>`)
+            .map(([k, r]) => `<a href="#/${k}" data-route="${k}">${icon(r.icon)}<span>${r.title}</span>${k === 'missions' || k === 'requests' ? `<b class="count" id="${k}Count"></b>` : ''}</a>`)
             .join('')}
         </nav>
         <div class="foot">جميع الأوقات بتوقيت القاهرة</div>
@@ -3541,8 +4948,18 @@ function watchPendingMissions() {
     const el = $('#missionsCount');
     if (el) el.textContent = (await pendingMissionsCount()) || '';
   };
+  const updateReq = async () => {
+    const el = $('#requestsCount');
+    if (el) el.textContent = (await pendingRequestsCount()) || '';
+  };
   update();
-  stopPending = watch('missions', update);
+  updateReq();
+  const a = watch('missions', update);
+  const b = watch('requests', updateReq);
+  stopPending = () => {
+    a();
+    b();
+  };
 }
 
 function askNewPassword() {
