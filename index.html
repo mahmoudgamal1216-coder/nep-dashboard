@@ -358,6 +358,29 @@ table.emp td.job .badge { margin-top: 4px; }
 .crit-item.off { opacity: .55; }
 .probation { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .stars { color: var(--accent, #f2a900); letter-spacing: 1px; }
+
+/* «مهامي» */
+.task-form { display: grid; gap: 10px; }
+.task-form .input.big { font-size: 17px; padding: 14px 16px; }
+.task-form-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.task-form-row > .input { flex: 1; min-width: 130px; }
+.task-remind { display: flex; align-items: center; gap: 4px; }
+.task-remind .input { width: 120px; }
+.task-list { display: grid; gap: 8px; }
+.task { display: flex; align-items: flex-start; gap: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--card, #fff); }
+.task.urgent { border-inline-start: 4px solid var(--bad); }
+.task.done .task-title { text-decoration: line-through; color: var(--muted); }
+.task-check { flex: none; width: 28px; height: 28px; border-radius: 8px; border: 2px solid var(--brand); background: transparent; color: #fff; font-weight: 800; cursor: pointer; margin-top: 2px; }
+.task.done .task-check { background: var(--ok); border-color: var(--ok); }
+.task-check:hover { background: var(--info-bg); }
+.task-main { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.task-title { font-weight: 700; font-size: 15px; word-break: break-word; }
+.task-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.chip-s { font-size: 12px; background: var(--bg, #f3f4f6); border-radius: 999px; padding: 2px 9px; }
+.task-actions { display: flex; gap: 2px; flex: none; }
+.task-day { margin: 14px 0 8px; }
+.task-day:first-child { margin-top: 0; }
+@media (max-width: 640px) { .task { flex-wrap: wrap; } .task-actions { width: 100%; justify-content: flex-end; } }
 </style>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
@@ -801,6 +824,34 @@ async function docUrl(path) {
   return data?.signedUrl || null;
 }
 
+/* ---------------- «مهامي» — the owner's personal tasks ---------------- */
+
+const mapTask = (r) => ({
+  id: r.id, title: r.title, details: r.details || '', requestedBy: r.requested_by || '', priority: r.priority || 'normal',
+  dueDate: r.due_date, remindAt: r.remind_at, reminded: r.reminded === true, done: r.done === true, doneAt: r.done_at,
+  createdAt: r.created_at,
+});
+/** Every open task + tasks finished since `doneSince` (ISO). */
+async function listTasks(doneSince) {
+  const [open, done] = await Promise.all([
+    sb.from('owner_tasks').select('*').eq('done', false).order('due_date').limit(2000),
+    sb.from('owner_tasks').select('*').eq('done', true).gte('done_at', doneSince).order('done_at', { ascending: false }).limit(1000),
+  ]);
+  return [...must(open), ...must(done)].map(mapTask);
+}
+async function saveTask(id, t) {
+  const row = {
+    title: t.title, details: t.details || '', requested_by: t.requestedBy || '', priority: t.priority || 'normal',
+    due_date: t.dueDate, remind_at: t.remindAt || null,
+  };
+  if ('remindAt' in t) row.reminded = false; // a new / changed reminder fires again
+  return id ? must(await sb.from('owner_tasks').update(row).eq('id', id)) : must(await sb.from('owner_tasks').insert(row));
+}
+const setTaskDone = async (id, done) =>
+  must(await sb.from('owner_tasks').update({ done, done_at: done ? new Date().toISOString() : null }).eq('id', id));
+const moveTask = async (id, dueDate) => must(await sb.from('owner_tasks').update({ due_date: dueDate }).eq('id', id));
+const deleteTask = async (id) => must(await sb.from('owner_tasks').delete().eq('id', id));
+
 const urlCache = new Map();
 async function selfieUrl(path) {
   if (!path) return null;
@@ -819,7 +870,7 @@ function watch(table, cb) {
   return () => sb.removeChannel(ch);
 }
 
-return { configured, sb, mapSite, mapEngineer, mapMission, mapRequest, mapDoc, mapAttendance, mapSettings, signIn, signOut, resetPasswordEmail, setNewPassword, onAuth, isAdmin, fn, listSites, saveSite, deleteSite, listEngineers, updateEngineer, getSettings, saveSettings, getChatIds, saveChatIds, attendanceOn, attendanceRange, listAttempts, listMissions, pendingMissionsCount, mapHr, mapSalary, mapLeave, loadHr, saveHr, saveProbation, mapCriterion, mapEvaluation, listCriteria, saveCriterion, deleteCriterion, listEvaluations, saveEvaluation, deleteEvaluation, mapInterview, listInterviews, saveInterview, deleteInterview, addSalaryChange, deleteSalaryChange, addLeave, deleteLeave, savePayrollSettings, listAdjustments, saveAdjustment, attendanceForUser, missionsBetween, listRequests, pendingRequestsCount, approvedPermissions, listDocs, expiringDocs, saveDoc, deleteDoc, docUrl, selfieUrl, watch };
+return { configured, sb, mapSite, mapEngineer, mapMission, mapRequest, mapDoc, mapAttendance, mapSettings, signIn, signOut, resetPasswordEmail, setNewPassword, onAuth, isAdmin, fn, listSites, saveSite, deleteSite, listEngineers, updateEngineer, getSettings, saveSettings, getChatIds, saveChatIds, attendanceOn, attendanceRange, listAttempts, listMissions, pendingMissionsCount, mapHr, mapSalary, mapLeave, loadHr, saveHr, saveProbation, mapCriterion, mapEvaluation, listCriteria, saveCriterion, deleteCriterion, listEvaluations, saveEvaluation, deleteEvaluation, mapInterview, listInterviews, saveInterview, deleteInterview, addSalaryChange, deleteSalaryChange, addLeave, deleteLeave, savePayrollSettings, listAdjustments, saveAdjustment, attendanceForUser, missionsBetween, listRequests, pendingRequestsCount, approvedPermissions, listDocs, expiringDocs, saveDoc, deleteDoc, docUrl, mapTask, listTasks, saveTask, setTaskDone, moveTask, deleteTask, selfieUrl, watch };
 })();
 
 // ===== js/ui.js =====
@@ -1701,6 +1752,250 @@ async function showPhotos(r) {
 }
 
 return { render, showPhotos };
+})();
+
+// ===== js/pages/tasks.js =====
+const __m_js_pages_tasks = (() => {
+const { listTasks, saveTask, setTaskDone, moveTask, deleteTask, watch } = __m_js_api;
+const { esc, $, badge, icon, modal, toast, confirmDialog, todayKey, addDaysKey, weekdayOfKey, fmtTime24 } = __m_js_ui;
+// «مهامي»: the owner's personal to-do list. Unfinished tasks roll over to today automatically
+// (with how many days late); reminders arrive on Telegram from the cron and as browser notifications here.
+
+
+const PRIORITY = { high: ['عاجلة', 'bad'], normal: ['عادية', ''], low: ['غير عاجلة', 'info'] };
+const RANK = { high: 0, normal: 1, low: 2 };
+const daysBetween = (a, b) => Math.round((new Date(`${b}T12:00:00Z`) - new Date(`${a}T12:00:00Z`)) / 864e5);
+const dayLabel = (k) => {
+  const t = todayKey();
+  if (k === t) return 'اليوم';
+  if (k === addDaysKey(t, 1)) return 'غدًا';
+  if (k === addDaysKey(t, -1)) return 'أمس';
+  return `${weekdayOfKey(k)} ${k.slice(8, 10)}/${k.slice(5, 7)}`;
+};
+/** Local (Cairo) date + "HH:MM" → ISO timestamp. */
+const toIso = (date, hhmm) => (hhmm ? new Date(`${date}T${hhmm}:00`).toISOString() : null);
+
+function render(page) {
+  let rows = null;
+  let error = '';
+  let tab = 'today';
+  const notified = new Set();
+
+  page.innerHTML = `
+    <section class="card task-add"><div class="card-b">
+      <form id="add" class="task-form" autocomplete="off">
+        <input class="input big" name="title" maxlength="300" placeholder="✍️ اكتب المهمة المطلوبة منك ثم اضغط Enter…" />
+        <div class="task-form-row">
+          <input class="input" name="by" list="taskPeople" maxlength="80" placeholder="مين طلبها؟" />
+          <datalist id="taskPeople"></datalist>
+          <select class="input" name="priority"><option value="normal">عادية</option><option value="high">🔴 عاجلة</option><option value="low">غير عاجلة</option></select>
+          <input class="input ltr" type="date" name="date" />
+          <label class="task-remind">⏰ <input class="input ltr" type="time" name="time" title="ميعاد التنبيه (اختياري)" /></label>
+          <button class="btn primary" type="submit">${icon('plus')} إضافة</button>
+        </div>
+        <input class="input" name="details" maxlength="1000" placeholder="تفاصيل (اختياري)" />
+      </form>
+    </div></section>
+    <section class="kpis" id="kpis"></section>
+    <section class="card">
+      <div class="card-h">
+        <div class="tabs-mini" id="tabs">
+          <button data-tab="today" class="on">اليوم</button><button data-tab="upcoming">القادمة</button><button data-tab="done">المنجزة</button>
+        </div>
+        <button class="btn ghost sm" id="notifBtn" hidden>🔔 تفعيل تنبيهات الكمبيوتر</button>
+      </div>
+      <div class="card-b" id="list"><div class="empty"><span class="spinner"></span></div></div>
+    </section>
+    <p class="hint">المهمة التي لم تُنجز تنتقل تلقائيًا إلى اليوم التالي ويظهر بجانبها عدد أيام الترحيل. التنبيهات تصلك على تليجرام في ميعادها، وكل صباح تصلك قائمة مهام اليوم.</p>`;
+
+  const form = $('#add', page);
+  form.date.value = todayKey();
+
+  const item = (t) => {
+    const today = todayKey();
+    const late = !t.done && t.dueDate < today ? daysBetween(t.dueDate, today) : 0;
+    const [pl, pk] = PRIORITY[t.priority] || PRIORITY.normal;
+    return `<div class="task ${t.done ? 'done' : ''} ${t.priority === 'high' && !t.done ? 'urgent' : ''}">
+      <button class="task-check" data-done="${esc(t.id)}" title="${t.done ? 'إلغاء الإنجاز' : 'تم الإنجاز'}">${t.done ? '✔' : ''}</button>
+      <div class="task-main">
+        <div class="task-title">${esc(t.title)}</div>
+        ${t.details ? `<div class="muted small">${esc(t.details)}</div>` : ''}
+        <div class="task-meta">
+          ${t.requestedBy ? `<span class="chip-s">👤 ${esc(t.requestedBy)}</span>` : ''}
+          ${t.priority !== 'normal' ? badge(pl, pk) : ''}
+          ${late ? badge(`مترحّلة من ${dayLabel(t.dueDate)} — ${late === 1 ? 'يوم' : late === 2 ? 'يومان' : `${late} أيام`}`, 'warn') : ''}
+          ${!t.done && t.dueDate > today ? `<span class="chip-s">📅 ${dayLabel(t.dueDate)}</span>` : ''}
+          ${t.remindAt && !t.done ? `<span class="chip-s ${t.reminded ? 'muted' : ''}">⏰ ${fmtTime24(t.remindAt)}${t.reminded ? ' (أُرسل)' : ''}</span>` : ''}
+          ${t.done && t.doneAt ? `<span class="chip-s">✔ ${dayLabel(todayKeyOf(t.doneAt))} ${fmtTime24(t.doneAt)}</span>` : ''}
+        </div>
+      </div>
+      <div class="task-actions">
+        ${!t.done ? `<button class="btn ghost sm" data-tomorrow="${esc(t.id)}" title="تأجيل للغد">⏭ غدًا</button>` : ''}
+        <button class="btn ghost sm" data-edit="${esc(t.id)}" title="تعديل">${icon('edit')}</button>
+        <button class="btn ghost sm" data-del="${esc(t.id)}" title="حذف">${icon('trash')}</button>
+      </div></div>`;
+  };
+
+  const draw = () => {
+    if (error) return ($('#list', page).innerHTML = `<div class="empty">${esc(error)}</div>`);
+    if (!rows) return;
+    const today = todayKey();
+    const open = rows.filter((t) => !t.done);
+    const todayList = open.filter((t) => t.dueDate <= today)
+      .sort((a, b) => RANK[a.priority] - RANK[b.priority] || a.dueDate.localeCompare(b.dueDate) || (a.createdAt || '').localeCompare(b.createdAt || ''));
+    const upcoming = open.filter((t) => t.dueDate > today).sort((a, b) => a.dueDate.localeCompare(b.dueDate) || RANK[a.priority] - RANK[b.priority]);
+    const doneList = rows.filter((t) => t.done).sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || ''));
+    const doneToday = doneList.filter((t) => t.doneAt && todayKeyOf(t.doneAt) === today).length;
+    const carried = todayList.filter((t) => t.dueDate < today).length;
+    const kpi = (l, v, c) => `<div class="card kpi"><div class="label"><span class="dot" style="background:${c}"></span>${l}</div><div class="value">${v}</div></div>`;
+    $('#kpis', page).innerHTML = kpi('مهام اليوم', todayList.length, 'var(--brand)') + kpi('مترحّلة من أيام سابقة', carried, 'var(--warn)')
+      + kpi('عاجلة', todayList.filter((t) => t.priority === 'high').length, 'var(--bad)') + kpi('أنجزتها اليوم', doneToday, 'var(--ok)');
+    const people = [...new Set(rows.map((t) => t.requestedBy).filter(Boolean))].sort();
+    $('#taskPeople', page).innerHTML = people.map((p) => `<option value="${esc(p)}">`).join('');
+
+    let html = '';
+    if (tab === 'today') {
+      html = todayList.length ? `<div class="task-list">${todayList.map(item).join('')}</div>`
+        : `<div class="empty">🎉 لا توجد مهام مفتوحة لليوم.</div>`;
+    } else if (tab === 'upcoming') {
+      const groups = {};
+      upcoming.forEach((t) => (groups[t.dueDate] ||= []).push(t));
+      html = upcoming.length ? Object.entries(groups).map(([d, list]) =>
+        `<h4 class="task-day">${dayLabel(d)} <span class="muted small">${d}</span></h4><div class="task-list">${list.map(item).join('')}</div>`).join('')
+        : '<div class="empty">لا توجد مهام مجدولة لأيام قادمة.</div>';
+    } else {
+      html = doneList.length ? `<div class="task-list">${doneList.map(item).join('')}</div>` : '<div class="empty">لم تُنجز مهام خلال آخر 30 يومًا.</div>';
+    }
+    $('#list', page).innerHTML = html;
+    page.querySelectorAll('#tabs button').forEach((b) => {
+      const n = b.dataset.tab === 'today' ? todayList.length : b.dataset.tab === 'upcoming' ? upcoming.length : doneList.length;
+      b.textContent = `${{ today: 'اليوم', upcoming: 'القادمة', done: 'المنجزة' }[b.dataset.tab]} (${n})`;
+    });
+  };
+
+  const load = async () => {
+    try {
+      rows = await listTasks(new Date(Date.now() - 30 * 864e5).toISOString());
+      error = '';
+    } catch (err) {
+      error = /owner_tasks/.test(err.message) ? 'جدول المهام غير مفعّل في قاعدة البيانات بعد.' : err.message;
+    }
+    draw();
+  };
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = form.title.value.trim();
+    if (!title) return form.title.focus();
+    const date = form.date.value || todayKey();
+    try {
+      await saveTask(null, {
+        title, requestedBy: form.by.value.trim(), priority: form.priority.value, dueDate: date,
+        remindAt: toIso(date, form.time.value), details: form.details.value.trim(),
+      });
+      form.title.value = '';
+      form.details.value = '';
+      form.time.value = '';
+      form.priority.value = 'normal';
+      form.title.focus();
+      toast('تمت إضافة المهمة', 'ok');
+      load();
+    } catch (err) {
+      toast(err.message, 'bad');
+    }
+  });
+
+  const edit = (t) => modal({
+    title: 'تعديل المهمة',
+    body: `<div class="field"><label>المهمة *</label><input class="input" name="title" maxlength="300" value="${esc(t.title)}" /></div>
+      <div class="field"><label>تفاصيل</label><textarea class="input" name="details" rows="2" maxlength="1000">${esc(t.details)}</textarea></div>
+      <div class="grid-2">
+        <div class="field"><label>مين طلبها</label><input class="input" name="by" maxlength="80" value="${esc(t.requestedBy)}" /></div>
+        <div class="field"><label>الأولوية</label><select class="input" name="priority">
+          ${Object.entries(PRIORITY).map(([k, [l]]) => `<option value="${k}" ${t.priority === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div class="field"><label>اليوم</label><input class="input ltr" type="date" name="date" value="${esc(t.dueDate)}" /></div>
+        <div class="field"><label>ميعاد التنبيه</label><input class="input ltr" type="time" name="time" value="${t.remindAt ? fmtTime24(t.remindAt) : ''}" /></div>
+      </div>`,
+    onSubmit: async (f) => {
+      if (!f.title.value.trim()) throw new Error('اكتب المهمة.');
+      const date = f.date.value || t.dueDate;
+      await saveTask(t.id, { title: f.title.value.trim(), details: f.details.value.trim(), requestedBy: f.by.value.trim(),
+        priority: f.priority.value, dueDate: date, remindAt: toIso(date, f.time.value) });
+      toast('تم الحفظ', 'ok');
+      load();
+    },
+  });
+
+  page.addEventListener('click', async (ev) => {
+    const b = ev.target.closest('button');
+    if (!b || !rows) return;
+    const find = (id) => rows.find((x) => x.id === id);
+    try {
+      if (b.dataset.tab) {
+        tab = b.dataset.tab;
+        page.querySelectorAll('#tabs button').forEach((x) => x.classList.toggle('on', x === b));
+        draw();
+      }
+      if (b.dataset.done) {
+        const t = find(b.dataset.done);
+        t.done = !t.done; // instant feedback
+        t.doneAt = t.done ? new Date().toISOString() : null;
+        draw();
+        await setTaskDone(t.id, t.done);
+        if (t.done) toast(`✔ تم: ${t.title}`, 'ok');
+        load();
+      }
+      if (b.dataset.tomorrow) {
+        await moveTask(b.dataset.tomorrow, addDaysKey(todayKey(), 1));
+        toast('تم التأجيل إلى الغد', 'ok');
+        load();
+      }
+      if (b.dataset.edit) edit(find(b.dataset.edit));
+      if (b.dataset.del && await confirmDialog('حذف المهمة', `حذف «${find(b.dataset.del).title}»؟`, { confirmLabel: 'حذف', danger: true })) {
+        await deleteTask(b.dataset.del);
+        load();
+      }
+    } catch (err) {
+      toast(err.message || 'حدث خطأ', 'bad');
+    }
+  });
+
+  // Desktop notifications while this page is open (Telegram covers the rest).
+  const notifBtn = $('#notifBtn', page);
+  const canNotify = 'Notification' in window;
+  if (canNotify && Notification.permission === 'default') notifBtn.hidden = false;
+  notifBtn.addEventListener('click', async () => {
+    const p = await Notification.requestPermission();
+    notifBtn.hidden = p !== 'default';
+    if (p === 'granted') toast('تم تفعيل التنبيهات على الكمبيوتر', 'ok');
+  });
+  const tick = setInterval(() => {
+    if (!rows) return;
+    const now = Date.now();
+    rows.filter((t) => !t.done && t.remindAt && !notified.has(t.id)).forEach((t) => {
+      const at = new Date(t.remindAt).getTime();
+      if (at <= now && now - at < 10 * 60000) {
+        notified.add(t.id);
+        if (canNotify && Notification.permission === 'granted') new Notification('⏰ تذكير بمهمة', { body: t.title, tag: t.id });
+        toast(`⏰ تذكير: ${t.title}`, 'warn');
+      }
+    });
+    draw(); // day change → carried tasks update
+  }, 30000);
+
+  load();
+  form.title.focus();
+  const unsub = watch('owner_tasks', load);
+  return () => {
+    unsub();
+    clearInterval(tick);
+  };
+}
+
+const keyFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' });
+const todayKeyOf = (iso) => keyFmt.format(new Date(iso));
+
+return { render };
 })();
 
 // ===== js/pages/sites.js =====
@@ -4729,6 +5024,7 @@ const { configured, fn, isAdmin, onAuth, signIn, signOut, resetPasswordEmail, se
 const { esc, icon, toast, modal, $ } = __m_js_ui;
 const { startStore, stopStore, getState, subscribe } = __m_js_store;
 const today = __m_js_pages_today;
+const tasks = __m_js_pages_tasks;
 const sites = __m_js_pages_sites;
 const engineers = __m_js_pages_engineers;
 const missions = __m_js_pages_missions;
@@ -4755,7 +5051,9 @@ const settings = __m_js_pages_settings;
 
 
 
+
 const ROUTES = {
+  tasks: { title: 'مهامي', icon: 'check', page: tasks },
   today: { title: 'لوحة اليوم', icon: 'today', page: today },
   sites: { title: 'المواقع', icon: 'site', page: sites },
   engineers: { title: 'الموظفين', icon: 'users', page: engineers },
